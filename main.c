@@ -39,6 +39,36 @@ char* wipe_char(char* string, char devil) {
     return new;
 }
 
+char** split(char* string, char delimiter) {
+    size_t space_count = 0;
+    for (size_t i = 0; i < strlen(string); i++) {
+        if (string[i] == delimiter) space_count++;
+    }
+    printf("2HI\n");
+
+    char** parts = calloc(space_count, sizeof(char*));
+    size_t part_count = 0;
+    printf("3HI\n");
+
+    for (size_t i = 0; i < strlen(string); i++) {
+        printf("4HI\n");
+        if (string[i] == delimiter) {
+            parts[++part_count] = "";
+            continue;
+        }
+        printf("5HI\n");
+        parts[part_count] = ch_append(parts[part_count], string[i]);
+        printf("7HI\n");
+    }
+    printf("6HI\n");
+
+    return parts;
+}
+
+bool startswith(char* str, char* pre) {
+    return strncmp(pre, str, strlen(pre)) == 0;
+}
+
 void node_ch_append(Node* node, char new) {
     node->text_content = ch_append(
         node->text_content,
@@ -108,7 +138,7 @@ void execute(char* path) {
         if (nodes[node_idx]->type == TEXT) {
             if (c == '[') {
                 // Now we start to make a tag
-                printf("Text Node: %s\n", nodes[node_idx]->text_content);
+                //printf("Text Node: %s\n", nodes[node_idx]->text_content);
 
                 nodes[++node_idx] = new_node(TAG);
                 
@@ -120,7 +150,7 @@ void execute(char* path) {
                     while (!peak(text + index + 1, "endscript")) index++;
                 }
 
-                printf("Tag: %s\n", nodes[node_idx]->text_content);
+                //printf("Tag: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == ';') {
@@ -130,7 +160,7 @@ void execute(char* path) {
                     node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                printf("Comment: %s\n", nodes[node_idx]->text_content);
+                //printf("Comment: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == '*') {
@@ -140,7 +170,7 @@ void execute(char* path) {
                     node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                printf("Label: %s\n", nodes[node_idx]->text_content);
+                //printf("Label: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             }
@@ -156,7 +186,7 @@ void execute(char* path) {
         break;
     }
 
-    printf("Last Node: %s\n", nodes[node_idx]->text_content);
+    //printf("Last Node: %s\n", nodes[node_idx]->text_content);
 
 
     for (size_t i = 0; i < node_idx; i++) {
@@ -183,7 +213,27 @@ void execute(char* path) {
             nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
         }
 
+        if (nodes[i]->type == TAG) {
+            printf("1HI\n");
+            char** parts = split(nodes[i]->text_content, ' ');
+            printf("HI\n");
+
+            for (size_t part_i = 0; *(parts[i]); i++) {
+                printf("HELLO: '%s'\n", parts[part_i]);
+            }
+            //for (size_t part_i = 0; part_i < part_count; part_i++) {
+            //}
+
+            if (strcmp(parts[0], "if") == 0) {
+                while (strcmp(nodes[i]->text_content, "endif") != 0) {
+                    printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
+                    i++;
+                }
+            }
+        }
+
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
+        if (i > 100) break;
     }
 }
 
