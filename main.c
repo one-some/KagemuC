@@ -26,6 +26,19 @@ char* ch_append(char* string, char new) {
     return new_string;
 }
 
+char* wipe_char(char* string, char devil) {
+    size_t len = strlen(string);
+    char* new = calloc(len, sizeof(char));
+    size_t new_i = 0;
+
+    for (size_t i = 0; i < len; i++) {
+        if (string[i] == devil) continue;
+        new[new_i++] = string[i];
+    }
+
+    return new;
+}
+
 void node_ch_append(Node* node, char new) {
     node->text_content = ch_append(
         node->text_content,
@@ -36,6 +49,21 @@ void node_ch_append(Node* node, char new) {
 void assert_fail(char* msg) {
     printf("ERR: %s\n", msg);
     exit(1);
+}
+
+bool peak(char* bigger, char* littler) {
+    return memcmp(bigger, littler, strlen(littler) - 1) == 0;
+}
+
+bool is_node_substantial(Node* node) {
+    for (size_t i = 0; i < strlen(node->text_content); i++) {
+        char c = node->text_content[i];
+        if (c == ' ') continue;
+        if (c == '\n') continue;
+        if (c == '\r') continue;
+        return true;
+    }
+    return false;
 }
 
 Node* new_node(enum NodeType type) {
@@ -67,52 +95,57 @@ void execute(char* path) {
     size_t index = 0;
     bool is_newline = true;
 
-    Node* current_node = calloc(1, sizeof(Node));
-    current_node->type = TEXT;
-    current_node->text_content = "";
+    Node* nodes[4096 * 12] = { 0 };
+    size_t node_idx = 0;
+
+    nodes[node_idx] = new_node(TEXT);
 
     while (true) {
         if (index > file_length) break;
 
         char c = text[index++];
 
-        if (current_node->type == TEXT) {
+        if (nodes[node_idx]->type == TEXT) {
             if (c == '[') {
                 // Now we start to make a tag
-                printf("Text Node: %s\n", current_node->text_content);
+                printf("Text Node: %s\n", nodes[node_idx]->text_content);
 
-                current_node = new_node(TAG);
+                nodes[++node_idx] = new_node(TAG);
                 
                 while (text[index++] != ']') {
-                    node_ch_append(current_node, text[index - 1]);
+                    node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                printf("Tag: %s\n", current_node->text_content);
-                current_node = new_node(TEXT);
+                if (strcmp(nodes[node_idx]->text_content, "iscript") == 0) {
+                    while (!peak(text + index + 1, "endscript")) index++;
+                }
+
+                printf("Tag: %s\n", nodes[node_idx]->text_content);
+                nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == ';') {
-                current_node = new_node(COMMENT);
+                nodes[++node_idx] = new_node(COMMENT);
                 
                 while (text[index++] != '\n') {
-                    node_ch_append(current_node, text[index - 1]);
+                    node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                printf("Comment: %s\n", current_node->text_content);
-                current_node = new_node(TEXT);
+                printf("Comment: %s\n", nodes[node_idx]->text_content);
+                nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == '*') {
-                current_node = new_node(LABEL);
+                nodes[++node_idx] = new_node(LABEL);
                 
                 while (text[index++] != '\n') {
-                    node_ch_append(current_node, text[index - 1]);
+                    node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                printf("Label: %s\n", current_node->text_content);
-                current_node = new_node(TEXT);
+                printf("Label: %s\n", nodes[node_idx]->text_content);
+                nodes[++node_idx] = new_node(TEXT);
                 continue;
             }
 
-            current_node->text_content = ch_append(current_node->text_content, c);
+            node_ch_append(nodes[node_idx], c);
             //printf("W c == %c\n", c);
             //
             is_newline = c == '\n';
@@ -123,9 +156,37 @@ void execute(char* path) {
         break;
     }
 
-    printf("Last Node: %s\n", current_node->text_content);
+    printf("Last Node: %s\n", nodes[node_idx]->text_content);
+
+
+    for (size_t i = 0; i < node_idx; i++) {
+        char* type = "unknown";
+        switch (nodes[i]->type) {
+            case TEXT:
+                type = "TEXT";
+                break;
+            case TAG:
+                type = "TAG";
+                break;
+            case COMMENT:
+                type = "COMMENT";
+                break;
+            case LABEL:
+                type = "LABEL";
+                break;
+        }
+
+        if (nodes[i]->type == COMMENT) continue;
+        if (!is_node_substantial(nodes[i])) continue;
+
+        if (nodes[i]->type == TEXT) {
+            nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
+        }
+
+        printf("%s: \"%s\"\n", type, nodes[i]->text_content);
+    }
 }
 
 int main() {
-    execute("data/title.ks");
+    execute("data/scenario.ks");
 }
