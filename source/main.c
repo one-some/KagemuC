@@ -191,7 +191,9 @@ void execute(char* path) {
     }
 
     //printf("Last Node: %s\n", nodes[node_idx]->text_content);
+    //
 
+    char* speaker = "idk";
 
     for (size_t i = 0; i < node_idx; i++) {
         char* type = "unknown";
@@ -233,7 +235,14 @@ void execute(char* path) {
                 }
             } else if (strcmp(tag_name, "p") == 0) {
                 getchar();
-            }
+            } else if (strcmp(tag_name, "jinobun") == 0) {
+                speaker = "jinobun";
+            } else if (strcmp(tag_name, "l") == 0) { getchar(); }
+        }
+
+        if (nodes[i]->type == TEXT) {
+            printf("[text] %s: \"%s\"\n", speaker, nodes[i]->text_content);
+            continue;
         }
 
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
