@@ -15,6 +15,11 @@ typedef struct SNode {
     char* text_content;
 } Node;
 
+typedef struct SStringArray {
+    size_t length;
+    char** entries;
+} StringArray;
+
 char* ch_append(char* string, char new) {
     size_t len = strlen(string);
     char* new_string = malloc(len + 2);
@@ -39,30 +44,29 @@ char* wipe_char(char* string, char devil) {
     return new;
 }
 
-char** split(char* string, char delimiter) {
+StringArray split(char* string, char delimiter) {
     size_t space_count = 0;
     for (size_t i = 0; i < strlen(string); i++) {
         if (string[i] == delimiter) space_count++;
     }
-    printf("2HI\n");
 
     char** parts = calloc(space_count, sizeof(char*));
+    parts[0] = "";
+
     size_t part_count = 0;
-    printf("3HI\n");
 
     for (size_t i = 0; i < strlen(string); i++) {
-        printf("4HI\n");
         if (string[i] == delimiter) {
             parts[++part_count] = "";
             continue;
         }
-        printf("5HI\n");
         parts[part_count] = ch_append(parts[part_count], string[i]);
-        printf("7HI\n");
     }
-    printf("6HI\n");
 
-    return parts;
+    return (StringArray) {
+        space_count + 1,
+        parts
+    };
 }
 
 bool startswith(char* str, char* pre) {
@@ -214,26 +218,25 @@ void execute(char* path) {
         }
 
         if (nodes[i]->type == TAG) {
-            printf("1HI\n");
-            char** parts = split(nodes[i]->text_content, ' ');
-            printf("HI\n");
+            StringArray parts = split(nodes[i]->text_content, ' ');
 
-            for (size_t part_i = 0; *(parts[i]); i++) {
-                printf("HELLO: '%s'\n", parts[part_i]);
-            }
-            //for (size_t part_i = 0; part_i < part_count; part_i++) {
-            //}
+            // for (size_t part_i = 0; part_i < parts.length; part_i++) {
+            //     printf("    - '%s'\n", parts.entries[part_i]);
+            // }
 
-            if (strcmp(parts[0], "if") == 0) {
+            char* tag_name = parts.entries[0];
+
+            if (strcmp(tag_name, "if") == 0) {
                 while (strcmp(nodes[i]->text_content, "endif") != 0) {
                     printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
                     i++;
                 }
+            } else if (strcmp(tag_name, "p") == 0) {
+                getchar();
             }
         }
 
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
-        if (i > 100) break;
     }
 }
 
