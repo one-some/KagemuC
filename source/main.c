@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <citro2d.h>
 
 enum NodeType {
     TEXT,
@@ -134,13 +135,23 @@ void execute(char* path) {
 
     nodes[node_idx] = new_node(TEXT);
 
+    printf("OK STARTING\n");
+
     while (true) {
+        if (index == 1) {
+            printf("LOL\n");
+            return;
+        }
+
         if (index > file_length) break;
 
         char c = text[index++];
+        printf("[%i] ?: '%c'\n", index - 1, c);
 
         if (nodes[node_idx]->type == TEXT) {
             if (c == '[') {
+                printf("1 TExt\n");
+                return;
                 // Now we start to make a tag
                 //printf("Text Node: %s\n", nodes[node_idx]->text_content);
 
@@ -158,6 +169,8 @@ void execute(char* path) {
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == ';') {
+                printf("2 TExt\n");
+                return;
                 nodes[++node_idx] = new_node(COMMENT);
                 
                 while (text[index++] != '\n') {
@@ -176,8 +189,12 @@ void execute(char* path) {
 
                 //printf("Label: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
+                // printf("3 TExt\n");
+                // return;
                 continue;
             }
+            printf("4 TExt\n");
+            return;
 
             node_ch_append(nodes[node_idx], c);
             //printf("W c == %c\n", c);
@@ -250,5 +267,21 @@ void execute(char* path) {
 }
 
 int main() {
-    execute("data/scenario.ks");
+    romfsInit();
+    gfxInitDefault();
+    consoleInit(GFX_TOP, NULL);
+
+    //execute("data/scenario.ks");
+    execute("romfs:/scenario.ks");
+
+    while (aptMainLoop()) {
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+
+        gspWaitForVBlank();
+    }
+
+    gfxExit();
+
+    return 0;
 }
