@@ -27,6 +27,8 @@ typedef struct SArray {
 typedef struct SStoryState {
     size_t node_idx;
     bool reached_end;
+    char* speaker;
+    bool center;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -211,7 +213,6 @@ Array execute(const char* path) {
 }
 
 void play_nodes(StoryState* state, Array node_array) {
-    char* speaker = "idk";
     Node** nodes = (Node**)node_array.entries;
 
     size_t i = state->node_idx;
@@ -264,13 +265,13 @@ void play_nodes(StoryState* state, Array node_array) {
                 break;
                 getchar();
             } else if (strcmp(tag_name, "jinobun") == 0) {
-                speaker = "jinobun";
+                state->speaker = "jinobun";
             } else if (strcmp(tag_name, "l") == 0) { getchar(); }
         }
 
         if (nodes[i]->type == TEXT) {
             consoleSelect(&top_screen);
-            printf("[text] %s: \"%s\"\n", speaker, nodes[i]->text_content);
+            printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
             consoleSelect(&bottom_screen);
             continue;
         }
@@ -303,7 +304,6 @@ int main() {
 
         if (keys_down & KEY_A) {
             play_nodes(&state, nodes);
-            printf("OL\n");
         }
 
         gfxFlushBuffers();
