@@ -109,7 +109,9 @@ Node* new_node(enum NodeType type) {
     return node;
 }
 
-void execute(char* path) {
+void execute(const char* path) {
+    printf("HI\n");
+
     FILE* file = fopen(path, "r");
     if (!file) assert_fail("No file");
 
@@ -130,28 +132,35 @@ void execute(char* path) {
     size_t index = 0;
     bool is_newline = true;
 
-    Node* nodes[4096 * 12] = { 0 };
+
+    // printf("HI HIIII\n");
+
+    // This crashes everything
+    //Node* nodes[4096 * 12] = { 0 };
+    Node** nodes = calloc(4096 * 12, sizeof(Node*));
     size_t node_idx = 0;
 
     nodes[node_idx] = new_node(TEXT);
 
     printf("OK STARTING\n");
 
+    bool t = false;
     while (true) {
-        if (index == 1) {
-            printf("LOL\n");
+        /*
+        if (index != 0) {
+            printf("HELLO\n");
             return;
         }
-
+        */
         if (index > file_length) break;
 
         char c = text[index++];
-        printf("[%i] ?: '%c'\n", index - 1, c);
+        //printf("[%i] ?: '%c'\n", index - 1, c);
 
         if (nodes[node_idx]->type == TEXT) {
             if (c == '[') {
-                printf("1 TExt\n");
-                return;
+                //printf("1 TExt\n");
+                //return;
                 // Now we start to make a tag
                 //printf("Text Node: %s\n", nodes[node_idx]->text_content);
 
@@ -170,7 +179,7 @@ void execute(char* path) {
                 continue;
             } else if (is_newline && c == ';') {
                 printf("2 TExt\n");
-                return;
+                //return;
                 nodes[++node_idx] = new_node(COMMENT);
                 
                 while (text[index++] != '\n') {
@@ -185,16 +194,17 @@ void execute(char* path) {
                 
                 while (text[index++] != '\n') {
                     node_ch_append(nodes[node_idx], text[index - 1]);
+                    // printf("HIII %c\n", text[index - 1]);
                 }
 
                 //printf("Label: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
-                // printf("3 TExt\n");
-                // return;
+                //printf("3 TExt %i\n", index);
+                //return;
                 continue;
             }
-            printf("4 TExt\n");
-            return;
+            //printf("4 TExt\n");
+            //return;
 
             node_ch_append(nodes[node_idx], c);
             //printf("W c == %c\n", c);
@@ -206,6 +216,9 @@ void execute(char* path) {
         assert_fail("WHAT");
         break;
     }
+
+    printf("ROFL\n");
+    //return;
 
     //printf("Last Node: %s\n", nodes[node_idx]->text_content);
     //
@@ -263,6 +276,7 @@ void execute(char* path) {
         }
 
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
+        if (i > 1420) break;
     }
 }
 
