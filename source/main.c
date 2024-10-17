@@ -4,6 +4,9 @@
 #include <string.h>
 #include <citro2d.h>
 
+PrintConsole top_screen;
+PrintConsole bottom_screen;
+
 enum NodeType {
     TEXT,
     TAG,
@@ -16,10 +19,15 @@ typedef struct SNode {
     char* text_content;
 } Node;
 
-typedef struct SStringArray {
+typedef struct SArray {
     size_t length;
-    char** entries;
-} StringArray;
+    void** entries;
+} Array;
+
+typedef struct SStoryState {
+    size_t node_idx;
+    bool reached_end;
+} StoryState;
 
 char* ch_append(char* string, char new) {
     size_t len = strlen(string);
@@ -45,7 +53,7 @@ char* wipe_char(char* string, char devil) {
     return new;
 }
 
-StringArray split(char* string, char delimiter) {
+Array split(char* string, char delimiter) {
     size_t space_count = 0;
     for (size_t i = 0; i < strlen(string); i++) {
         if (string[i] == delimiter) space_count++;
@@ -64,9 +72,9 @@ StringArray split(char* string, char delimiter) {
         parts[part_count] = ch_append(parts[part_count], string[i]);
     }
 
-    return (StringArray) {
+    return (Array) {
         space_count + 1,
-        parts
+        (void**)parts
     };
 }
 
@@ -109,7 +117,7 @@ Node* new_node(enum NodeType type) {
     return node;
 }
 
-void execute(const char* path) {
+Array execute(const char* path) {
     printf("HI\n");
 
     FILE* file = fopen(path, "r");
@@ -144,14 +152,7 @@ void execute(const char* path) {
 
     printf("OK STARTING\n");
 
-    bool t = false;
     while (true) {
-        /*
-        if (index != 0) {
-            printf("HELLO\n");
-            return;
-        }
-        */
         if (index > file_length) break;
 
         char c = text[index++];
@@ -159,11 +160,7 @@ void execute(const char* path) {
 
         if (nodes[node_idx]->type == TEXT) {
             if (c == '[') {
-                //printf("1 TExt\n");
-                //return;
                 // Now we start to make a tag
-                //printf("Text Node: %s\n", nodes[node_idx]->text_content);
-
                 nodes[++node_idx] = new_node(TAG);
                 
                 while (text[index++] != ']') {
@@ -174,19 +171,15 @@ void execute(const char* path) {
                     while (!peak(text + index + 1, "endscript")) index++;
                 }
 
-                //printf("Tag: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == ';') {
-                printf("2 TExt\n");
-                //return;
                 nodes[++node_idx] = new_node(COMMENT);
                 
                 while (text[index++] != '\n') {
                     node_ch_append(nodes[node_idx], text[index - 1]);
                 }
 
-                //printf("Comment: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
                 continue;
             } else if (is_newline && c == '*') {
@@ -194,21 +187,13 @@ void execute(const char* path) {
                 
                 while (text[index++] != '\n') {
                     node_ch_append(nodes[node_idx], text[index - 1]);
-                    // printf("HIII %c\n", text[index - 1]);
                 }
 
-                //printf("Label: %s\n", nodes[node_idx]->text_content);
                 nodes[++node_idx] = new_node(TEXT);
-                //printf("3 TExt %i\n", index);
-                //return;
                 continue;
             }
-            //printf("4 TExt\n");
-            //return;
 
             node_ch_append(nodes[node_idx], c);
-            //printf("W c == %c\n", c);
-            //
             is_newline = c == '\n';
             continue;
         }
@@ -218,14 +203,25 @@ void execute(const char* path) {
     }
 
     printf("ROFL\n");
-    //return;
 
-    //printf("Last Node: %s\n", nodes[node_idx]->text_content);
-    //
+    return (Array) {
+        node_idx,
+        (void**)nodes
+    };
+}
 
+void play_nodes(StoryState* state, Array node_array) {
     char* speaker = "idk";
+    Node** nodes = (Node**)node_array.entries;
 
-    for (size_t i = 0; i < node_idx; i++) {
+    size_t i = state->node_idx;
+
+    while (true) {
+        if (i++ >= node_array.length) {
+            state->reached_end = true;
+            break;
+        }
+
         char* type = "unknown";
         switch (nodes[i]->type) {
             case TEXT:
@@ -250,13 +246,14 @@ void execute(const char* path) {
         }
 
         if (nodes[i]->type == TAG) {
-            StringArray parts = split(nodes[i]->text_content, ' ');
+            Array parts_array = split(nodes[i]->text_content, ' ');
+            char** parts = (char**)parts_array.entries;
 
             // for (size_t part_i = 0; part_i < parts.length; part_i++) {
             //     printf("    - '%s'\n", parts.entries[part_i]);
             // }
 
-            char* tag_name = parts.entries[0];
+            char* tag_name = parts[0];
 
             if (strcmp(tag_name, "if") == 0) {
                 while (strcmp(nodes[i]->text_content, "endif") != 0) {
@@ -264,6 +261,7 @@ void execute(const char* path) {
                     i++;
                 }
             } else if (strcmp(tag_name, "p") == 0) {
+                break;
                 getchar();
             } else if (strcmp(tag_name, "jinobun") == 0) {
                 speaker = "jinobun";
@@ -271,24 +269,43 @@ void execute(const char* path) {
         }
 
         if (nodes[i]->type == TEXT) {
+            consoleSelect(&top_screen);
             printf("[text] %s: \"%s\"\n", speaker, nodes[i]->text_content);
+            consoleSelect(&bottom_screen);
             continue;
         }
 
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
-        if (i > 1420) break;
+        //if (i > 1420) break;
+        //
     }
+
+    state->node_idx = i;
 }
 
 int main() {
     romfsInit();
     gfxInitDefault();
-    consoleInit(GFX_TOP, NULL);
+
+    consoleInit(GFX_TOP, &top_screen);
+    consoleInit(GFX_BOTTOM, &bottom_screen);
 
     //execute("data/scenario.ks");
-    execute("romfs:/scenario.ks");
+    StoryState state = { 0 };
+    Array nodes = execute("romfs:/scenario.ks");
+    play_nodes(&state, nodes);
+    printf("HELLO %i\n", state.node_idx);
 
     while (aptMainLoop()) {
+        hidScanInput();
+
+        u32 keys_down = hidKeysDown();
+
+        if (keys_down & KEY_A) {
+            play_nodes(&state, nodes);
+            printf("OL\n");
+        }
+
         gfxFlushBuffers();
         gfxSwapBuffers();
 
