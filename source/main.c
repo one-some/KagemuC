@@ -7,9 +7,16 @@
 
 //PrintConsole top_screen;
 //PrintConsole bottom_screen;
+//
+
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
+
+const char* ignore_list[] = {
+    "evilworld",
+    "loadplugin",
+};
 
 enum NodeType {
     TEXT,
@@ -96,19 +103,31 @@ void node_ch_append(Node* node, char new) {
     );
 }
 
+char* mastrcat(char* start, char* second) {
+    //printf(" -- 1 '%s' -- 2 '%s' --\n", start, second);
+    size_t char_count = strlen(start) + strlen(second) + 1;
+    char* out = calloc(char_count, sizeof(char));
+
+    memcpy(out, start, strlen(start));
+    memcpy(out + strlen(start), second, strlen(second));
+    out[char_count] = '\0';
+
+    return out;
+}
+
 void show_text(char* in_text) {
-    shown_dialog_text = strcat(shown_dialog_text, in_text);
+    shown_dialog_text = mastrcat(shown_dialog_text, in_text);
+    printf("[hyy] '%s'\n", shown_dialog_text);
 }
 
 void clear_text() {
     shown_dialog_text = "";
-    show_text("");
 }
 
 void render_dialog() {
     C2D_TextBufClear(dialog_text_buffer);
 
-    char buffer[1024];
+    char buffer[4096];
     C2D_Text dialog_ct;
 
     snprintf(buffer, sizeof(buffer), "%s", shown_dialog_text);
@@ -288,14 +307,20 @@ void play_nodes(StoryState* state, Array node_array) {
 
             char* tag_name = parts[0];
 
-            bool found_speaker = false;
+            bool done_with_it = false;
             for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
                 if (strcmp(tag_name, speakers[j].tag_name) != 0) continue;
                 state->speaker = speakers[j].draw_name;
-                found_speaker = true;
+                done_with_it = true;
                 break;
             }
-            if (found_speaker) continue;
+            if (done_with_it) continue;
+
+            for (size_t j = 0; j < sizeof(ignore_list) / sizeof(char*); j++) {
+                if (strcmp(tag_name, ignore_list[j]) != 0) continue;
+                done_with_it = true;
+                break;
+            }
 
             if (strcmp(tag_name, "if") == 0) {
                 bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
@@ -318,22 +343,15 @@ void play_nodes(StoryState* state, Array node_array) {
             } else if (strcmp(tag_name, "l") == 0) {
                 break;
             } else if (strcmp(tag_name, "r") == 0) {
-                printf("\n");
+                show_text("\n");
             } else if (strcmp(tag_name, "cm") == 0) {
-                //consoleSelect(&top_screen);
-                consoleClear();
                 clear_text();
-                printf("%s: ", state->speaker);
-                //consoleSelect(&bottom_screen);
-
-            // Speakers
-            } else if (strcmp(tag_name, "jinobun") == 0) {
-                state->speaker = "(...)";
-            } else if (strcmp(tag_name, "unknown") == 0) {
-                state->speaker = "???";
-
+                show_text(state->speaker);
+                if (strlen(state->speaker)) show_text(": ");
             } else {
                 printf("Tag: \"%s\"\n", nodes[i]->text_content);
+                state->reached_end = true;
+                break;
             }
 
             continue;
@@ -364,11 +382,14 @@ int main() {
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
 
-    //consoleInit(GFX_TOP, &top_screen);
-    //consoleInit(GFX_BOTTOM, &bottom_screen);
     consoleInit(GFX_BOTTOM, NULL);
 
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+
+    clear_text();
+    show_text("HI");
+    show_text("RO\nFL");
+
 
 	// Load graphics
     C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
@@ -394,8 +415,15 @@ int main() {
         hidScanInput();
 
         u32 keys_down = hidKeysDown();
+        u32 keys_held = hidKeysHeld();
 
-        if (keys_down & KEY_A) {
+        if (
+            !state->reached_end
+            && (
+                (keys_down & KEY_A)
+                || (keys_held & KEY_Y)
+            )
+        ) {
             play_nodes(&state, nodes);
         }
 
