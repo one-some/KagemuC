@@ -1,4 +1,5 @@
-main.o: /home/susan/KagemuC/source/main.c \
+main.o: /home/somebody/Repos/KagemuC/source/main.c \
+ /home/somebody/Repos/KagemuC/source/speakers.h \
  /opt/devkitpro/libctru/include/citro2d.h \
  /opt/devkitpro/libctru/include/citro3d.h \
  /opt/devkitpro/libctru/include/c3d/types.h \
@@ -108,6 +109,7 @@ main.o: /home/susan/KagemuC/source/main.c \
  /opt/devkitpro/libctru/include/c2d/sprite.h \
  /opt/devkitpro/libctru/include/c2d/text.h \
  /opt/devkitpro/libctru/include/c2d/font.h
+/home/somebody/Repos/KagemuC/source/speakers.h:
 /opt/devkitpro/libctru/include/citro2d.h:
 /opt/devkitpro/libctru/include/citro3d.h:
 /opt/devkitpro/libctru/include/c3d/types.h:

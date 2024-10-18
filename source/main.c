@@ -1,90 +1,388 @@
-// Simple citro2d sprite drawing example
-// Images borrowed from:
-//   https://kenney.nl/assets/space-shooter-redux
-#include <citro2d.h>
-
-#include <assert.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <stdbool.h>
+#include <string.h>
+#include "speakers.h"
+#include <citro2d.h>
 
-#define MAX_SPRITES   768
-#define SCREEN_WIDTH  400
-#define SCREEN_HEIGHT 240
+//PrintConsole top_screen;
+//PrintConsole bottom_screen;
+static C2D_SpriteSheet sprite_sheet;
+static C2D_Sprite maid_body = {0};
 
-static C2D_SpriteSheet spriteSheet;
+enum NodeType {
+    TEXT,
+    TAG,
+    COMMENT,
+    LABEL,
+};
 
-//---------------------------------------------------------------------------------
-int main(int argc, char* argv[]) {
-//---------------------------------------------------------------------------------
-	// Init libs
-	romfsInit();
-	gfxInitDefault();
-	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+typedef struct SNode {
+    enum NodeType type;
+    char* text_content;
+} Node;
+
+typedef struct SArray {
+    size_t length;
+    void** entries;
+} Array;
+
+typedef struct SStoryState {
+    size_t node_idx;
+    bool reached_end;
+    char* speaker;
+    bool center;
+    bool in_if;
+} StoryState;
+
+char* ch_append(char* string, char new) {
+    size_t len = strlen(string);
+    char* new_string = malloc(len + 2);
+    strcpy(new_string, string);
+
+    new_string[len] = new;
+    new_string[len + 1] = '\0';
+
+    return new_string;
+}
+
+char* wipe_char(char* string, char devil) {
+    size_t len = strlen(string);
+    char* new = calloc(len, sizeof(char));
+    size_t new_i = 0;
+
+    for (size_t i = 0; i < len; i++) {
+        if (string[i] == devil) continue;
+        new[new_i++] = string[i];
+    }
+
+    return new;
+}
+
+Array split(char* string, char delimiter) {
+    size_t space_count = 0;
+    for (size_t i = 0; i < strlen(string); i++) {
+        if (string[i] == delimiter) space_count++;
+    }
+
+    char** parts = calloc(space_count, sizeof(char*));
+    parts[0] = "";
+
+    size_t part_count = 0;
+
+    for (size_t i = 0; i < strlen(string); i++) {
+        if (string[i] == delimiter) {
+            parts[++part_count] = "";
+            continue;
+        }
+        parts[part_count] = ch_append(parts[part_count], string[i]);
+    }
+
+    return (Array) {
+        space_count + 1,
+        (void**)parts
+    };
+}
+
+bool startswith(char* str, char* pre) {
+    return strncmp(pre, str, strlen(pre)) == 0;
+}
+
+void node_ch_append(Node* node, char new) {
+    node->text_content = ch_append(
+        node->text_content,
+        new
+    );
+}
+
+void assert_fail(char* msg) {
+    printf("ERR: %s\n", msg);
+    exit(1);
+}
+
+bool peak(char* bigger, char* littler) {
+    return memcmp(bigger, littler, strlen(littler) - 1) == 0;
+}
+
+bool is_node_substantial(Node* node) {
+    for (size_t i = 0; i < strlen(node->text_content); i++) {
+        char c = node->text_content[i];
+        if (c == ' ') continue;
+        if (c == '\n') continue;
+        if (c == '\r') continue;
+        return true;
+    }
+    return false;
+}
+
+Node* new_node(enum NodeType type) {
+    Node* node = calloc(1, sizeof(Node));
+    node->type = type;
+    node->text_content = "";
+
+    return node;
+}
+
+Array execute(const char* path) {
+    printf("HI\n");
+
+    FILE* file = fopen(path, "r");
+    if (!file) assert_fail("No file");
+
+    fseek(file, 0, SEEK_END);
+    size_t file_length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char* text = malloc(file_length + 1);
+
+    if (
+        fread(text, 1, file_length, file) != file_length
+    ) assert_fail("READD");
+
+    fclose(file);
+
+    text[file_length] = '\0';
+
+    size_t index = 0;
+    bool is_newline = true;
+
+
+    // printf("HI HIIII\n");
+
+    // This crashes everything
+    //Node* nodes[4096 * 12] = { 0 };
+    Node** nodes = calloc(4096 * 12, sizeof(Node*));
+    size_t node_idx = 0;
+
+    nodes[node_idx] = new_node(TEXT);
+
+    printf("OK STARTING\n");
+
+    while (true) {
+        if (index > file_length) break;
+
+        char c = text[index++];
+        //printf("[%i] ?: '%c'\n", index - 1, c);
+
+        if (nodes[node_idx]->type == TEXT) {
+            if (c == '[') {
+                // Now we start to make a tag
+                nodes[++node_idx] = new_node(TAG);
+                
+                while (text[index++] != ']') {
+                    node_ch_append(nodes[node_idx], text[index - 1]);
+                }
+
+                if (strcmp(nodes[node_idx]->text_content, "iscript") == 0) {
+                    while (!peak(text + index + 1, "endscript")) index++;
+                }
+
+                nodes[++node_idx] = new_node(TEXT);
+                continue;
+            } else if (is_newline && c == ';') {
+                nodes[++node_idx] = new_node(COMMENT);
+                
+                while (text[index++] != '\n') {
+                    node_ch_append(nodes[node_idx], text[index - 1]);
+                }
+
+                nodes[++node_idx] = new_node(TEXT);
+                continue;
+            } else if (is_newline && c == '*') {
+                nodes[++node_idx] = new_node(LABEL);
+                
+                while (text[index++] != '\n') {
+                    node_ch_append(nodes[node_idx], text[index - 1]);
+                }
+
+                nodes[++node_idx] = new_node(TEXT);
+                continue;
+            }
+
+            node_ch_append(nodes[node_idx], c);
+            is_newline = c == '\n';
+            continue;
+        }
+
+        assert_fail("WHAT");
+        break;
+    }
+
+    printf("ROFL\n");
+
+    return (Array) {
+        node_idx,
+        (void**)nodes
+    };
+}
+
+void play_nodes(StoryState* state, Array node_array) {
+    Node** nodes = (Node**)node_array.entries;
+
+    size_t i = state->node_idx;
+
+    while (true) {
+        if (i++ >= node_array.length) {
+            state->reached_end = true;
+            break;
+        }
+
+        char* type = "unknown";
+        switch (nodes[i]->type) {
+            case TEXT:
+                type = "TEXT";
+                break;
+            case TAG:
+                type = "TAG";
+                break;
+            case COMMENT:
+                type = "COMMENT";
+                break;
+            case LABEL:
+                type = "LABEL";
+                break;
+        }
+
+        if (nodes[i]->type == COMMENT) continue;
+        if (!is_node_substantial(nodes[i])) continue;
+
+        if (nodes[i]->type == TAG) {
+            Array parts_array = split(nodes[i]->text_content, ' ');
+            char** parts = (char**)parts_array.entries;
+
+            // for (size_t part_i = 0; part_i < parts.length; part_i++) {
+            //     printf("    - '%s'\n", parts.entries[part_i]);
+            // }
+
+            char* tag_name = parts[0];
+
+            bool found_speaker = false;
+            for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
+                if (strcmp(tag_name, speakers[j].tag_name) != 0) continue;
+                state->speaker = speakers[j].draw_name;
+                found_speaker = true;
+                break;
+            }
+            if (found_speaker) continue;
+
+            if (strcmp(tag_name, "if") == 0) {
+                bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
+                state->in_if = true;
+                printf("%i\n", fataend);
+                continue;
+
+                //while (strcmp(nodes[i]->text_content, "endif") != 0) {
+                //    printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
+                //    i++;
+                //}
+            } else if (strcmp(tag_name, "else") == 0 && state->in_if) {
+                while (strcmp(nodes[i]->text_content, "endif") != 0) {
+                    printf("ELSECLAUSE - %s: \"%s\"\n", type, nodes[i]->text_content);
+                    i++;
+                }
+                state->in_if = false;
+            } else if (strcmp(tag_name, "p") == 0) {
+                break;
+            } else if (strcmp(tag_name, "l") == 0) {
+                break;
+            } else if (strcmp(tag_name, "r") == 0) {
+                printf("\n");
+            } else if (strcmp(tag_name, "cm") == 0) {
+                //consoleSelect(&top_screen);
+                consoleClear();
+                printf("%s: ", state->speaker);
+                //consoleSelect(&bottom_screen);
+
+            // Speakers
+            } else if (strcmp(tag_name, "jinobun") == 0) {
+                state->speaker = "(...)";
+            } else if (strcmp(tag_name, "unknown") == 0) {
+                state->speaker = "???";
+
+            } else {
+                printf("Tag: \"%s\"\n", nodes[i]->text_content);
+            }
+
+            continue;
+        } else if (nodes[i]->type == TEXT) {
+            nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
+
+            //consoleSelect(&top_screen);
+            printf("%s", nodes[i]->text_content);
+            //printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
+            //consoleSelect(&bottom_screen);
+            continue;
+        }
+
+        printf("%s: \"%s\"\n", type, nodes[i]->text_content);
+        //if (i > 1420) break;
+        //
+    }
+
+    state->node_idx = i;
+}
+
+int main() {
+    romfsInit();
+    gfxInitDefault();
+    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
-	consoleInit(GFX_BOTTOM, NULL);
 
-	// Create screens
-	C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+    //consoleInit(GFX_TOP, &top_screen);
+    //consoleInit(GFX_BOTTOM, &bottom_screen);
+    consoleInit(GFX_BOTTOM, NULL);
+
+    C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
 	// Load graphics
-	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
-	if (!spriteSheet) svcBreak(USERBREAK_PANIC);
+	sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
+	if (!sprite_sheet) svcBreak(USERBREAK_PANIC);
 
-	// Initialize sprites
-	srand(time(NULL));
+    size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
+    printf("LOL: %i\n", num_images);
 
-	C2D_Sprite sprite;
-	C2D_SpriteFromSheet(&sprite, spriteSheet, 0);
-	// C2D_SpriteSetCenter(&sprite, 0.5f, 0.5f);
-	// C2D_SpriteSetPos(&sprite, rand() % SCREEN_WIDTH, rand() % SCREEN_HEIGHT);
-	// C2D_SpriteSetRotation(&sprite, C3D_Angle(rand()/(float)RAND_MAX));
+    C2D_SpriteFromSheet(&maid_body, sprite_sheet, num_images - 1);
+    C2D_SpriteSetPos(&maid_body, 0, 0);
+    C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
 
-	printf("\x1b[8;1HPress Up to increment sprites");
-	printf("\x1b[9;1HPress Down to decrement sprites");
+    //execute("data/scenario.ks");
+    //StoryState state = { 0 };
+    //Array nodes = execute("romfs:/scenario.ks");
+    //play_nodes(&state, nodes);
+    //printf("HELLO %i\n", state.node_idx);
+    printf("START\n");
 
-	// Main loop
-	while (aptMainLoop())
-	{
-		// hidScanInput();
+    while (aptMainLoop()) {
+        hidScanInput();
 
-		// // Respond to user input
-		// u32 kDown = hidKeysDown();
-		// if (kDown & KEY_START)
-		// 	break; // break in order to return to hbmenu
+        u32 keys_down = hidKeysDown();
 
-		// u32 kHeld = hidKeysHeld();
-		// if ((kHeld & KEY_UP) && numSprites < MAX_SPRITES)
-		// 	numSprites++;
-		// if ((kHeld & KEY_DOWN) && numSprites > 1)
-		// 	numSprites--;
+        if (keys_down & KEY_A) {
+            //play_nodes(&state, nodes);
+        }
 
-		// // moveSprites();
-
-		// printf("\x1b[1;1HSprites: %zu/%u\x1b[K", numSprites, MAX_SPRITES);
-		printf("\x1b[2;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime()*6.0f);
-		printf("\x1b[3;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime()*6.0f);
-		printf("\x1b[4;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage()*100.0f);
-
-		// Render the scene
-		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
-
-		C2D_DrawSprite(&sprite);
-
+		C2D_DrawSprite(&maid_body);
 		C3D_FrameEnd(0);
-	}
+
+        // gfxFlushBuffers();
+        // gfxSwapBuffers();
+
+        // gspWaitForVBlank();
+        //printf("LOL");
+    }
 
 	// Delete graphics
-	C2D_SpriteSheetFree(spriteSheet);
+	C2D_SpriteSheetFree(sprite_sheet);
 
 	// Deinit libs
 	C2D_Fini();
 	C3D_Fini();
 	gfxExit();
 	romfsExit();
-	return 0;
+
+    return 0;
 }
