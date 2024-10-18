@@ -29,6 +29,7 @@ typedef struct SStoryState {
     bool reached_end;
     char* speaker;
     bool center;
+    bool in_if;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -242,10 +243,6 @@ void play_nodes(StoryState* state, Array node_array) {
         if (nodes[i]->type == COMMENT) continue;
         if (!is_node_substantial(nodes[i])) continue;
 
-        if (nodes[i]->type == TEXT) {
-            nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
-        }
-
         if (nodes[i]->type == TAG) {
             Array parts_array = split(nodes[i]->text_content, ' ');
             char** parts = (char**)parts_array.entries;
@@ -257,21 +254,45 @@ void play_nodes(StoryState* state, Array node_array) {
             char* tag_name = parts[0];
 
             if (strcmp(tag_name, "if") == 0) {
+                bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
+                state->in_if = true;
+                printf("%i\n", fataend);
+                continue;
+
+                //while (strcmp(nodes[i]->text_content, "endif") != 0) {
+                //    printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
+                //    i++;
+                //}
+            } else if (strcmp(tag_name, "else") == 0 && state->in_if) {
                 while (strcmp(nodes[i]->text_content, "endif") != 0) {
-                    printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
+                    printf("ELSECLAUSE - %s: \"%s\"\n", type, nodes[i]->text_content);
                     i++;
                 }
+                state->in_if = false;
             } else if (strcmp(tag_name, "p") == 0) {
                 break;
-                getchar();
             } else if (strcmp(tag_name, "jinobun") == 0) {
                 state->speaker = "jinobun";
-            } else if (strcmp(tag_name, "l") == 0) { getchar(); }
-        }
+            } else if (strcmp(tag_name, "l") == 0) {
+                break;
+            } else if (strcmp(tag_name, "r") == 0) {
+                printf("\n");
+            } else if (strcmp(tag_name, "cm") == 0) {
+                consoleSelect(&top_screen);
+                consoleClear();
+                printf("%s: ", state->speaker);
+                consoleSelect(&bottom_screen);
+            } else {
+                printf("Tag: \"%s\"\n", nodes[i]->text_content);
+            }
 
-        if (nodes[i]->type == TEXT) {
+            continue;
+        } else if (nodes[i]->type == TEXT) {
+            nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
+
             consoleSelect(&top_screen);
-            printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
+            printf("%s", nodes[i]->text_content);
+            //printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
             consoleSelect(&bottom_screen);
             continue;
         }
