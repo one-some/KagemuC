@@ -7,8 +7,9 @@
 
 //PrintConsole top_screen;
 //PrintConsole bottom_screen;
-static C2D_SpriteSheet sprite_sheet;
-static C2D_Sprite maid_body = {0};
+
+C2D_TextBuf dialog_text_buffer;
+char* shown_dialog_text;
 
 enum NodeType {
     TEXT,
@@ -92,6 +93,37 @@ void node_ch_append(Node* node, char new) {
     node->text_content = ch_append(
         node->text_content,
         new
+    );
+}
+
+void show_text(char* in_text) {
+    shown_dialog_text = strcat(shown_dialog_text, in_text);
+}
+
+void clear_text() {
+    shown_dialog_text = "";
+    show_text("");
+}
+
+void render_dialog() {
+    C2D_TextBufClear(dialog_text_buffer);
+
+    char buffer[1024];
+    C2D_Text dialog_ct;
+
+    snprintf(buffer, sizeof(buffer), "%s", shown_dialog_text);
+
+    C2D_TextParse(&dialog_ct, dialog_text_buffer, buffer);
+    C2D_TextOptimize(&dialog_ct);
+    C2D_DrawText(
+        &dialog_ct,
+        C2D_AlignLeft | C2D_WithColor,
+        20.0f,
+        200.0f,
+        0.5f,
+        0.5f,
+        0.5f,
+        0xFFFFFFFF
     );
 }
 
@@ -290,6 +322,7 @@ void play_nodes(StoryState* state, Array node_array) {
             } else if (strcmp(tag_name, "cm") == 0) {
                 //consoleSelect(&top_screen);
                 consoleClear();
+                clear_text();
                 printf("%s: ", state->speaker);
                 //consoleSelect(&bottom_screen);
 
@@ -308,11 +341,13 @@ void play_nodes(StoryState* state, Array node_array) {
             nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
 
             //consoleSelect(&top_screen);
-            printf("%s", nodes[i]->text_content);
+            //printf("%s", nodes[i]->text_content);
+            show_text(nodes[i]->text_content);
             //printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
             //consoleSelect(&bottom_screen);
             continue;
         }
+
 
         printf("%s: \"%s\"\n", type, nodes[i]->text_content);
         //if (i > 1420) break;
@@ -336,22 +371,24 @@ int main() {
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 
 	// Load graphics
-	sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
+    C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
 	if (!sprite_sheet) svcBreak(USERBREAK_PANIC);
 
     size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
     printf("LOL: %i\n", num_images);
 
+    C2D_Sprite maid_body;
     C2D_SpriteFromSheet(&maid_body, sprite_sheet, num_images - 1);
     C2D_SpriteSetPos(&maid_body, 0, 0);
     C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
 
-    //execute("data/scenario.ks");
-    //StoryState state = { 0 };
-    //Array nodes = execute("romfs:/scenario.ks");
+    StoryState state = { 0 };
+    Array nodes = execute("romfs:/scenario.ks");
     //play_nodes(&state, nodes);
-    //printf("HELLO %i\n", state.node_idx);
+    printf("HELLO %i\n", state.node_idx);
     printf("START\n");
+
+    dialog_text_buffer = C2D_TextBufNew(4096);
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -359,24 +396,24 @@ int main() {
         u32 keys_down = hidKeysDown();
 
         if (keys_down & KEY_A) {
-            //play_nodes(&state, nodes);
+            play_nodes(&state, nodes);
         }
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
+		C2D_TargetClear(top, C2D_Color32f(0.5f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
+
 		C2D_DrawSprite(&maid_body);
+
+        render_dialog();
+
 		C3D_FrameEnd(0);
-
-        // gfxFlushBuffers();
-        // gfxSwapBuffers();
-
-        // gspWaitForVBlank();
-        //printf("LOL");
     }
 
 	// Delete graphics
 	C2D_SpriteSheetFree(sprite_sheet);
+
+    C2D_TextBufDelete(dialog_text_buffer);
 
 	// Deinit libs
 	C2D_Fini();
