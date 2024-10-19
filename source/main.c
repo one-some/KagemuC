@@ -14,8 +14,10 @@ C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
 
 const char* ignore_list[] = {
-    "evilworld",
+    // Obv can't load dlls on 3ds
     "loadplugin",
+    // I don't want to deal with unloading images!!
+    "freeimage"
 };
 
 enum NodeType {
@@ -358,6 +360,8 @@ void play_nodes(StoryState* state, Array node_array) {
                 TODO("char_visible");
             } else if (strcmp(tag_name, "eval") == 0) {
                 TODO("eval");
+            } else if (strcmp(tag_name, "title") == 0) {
+                TODO("title");
             } else if (strcmp(tag_name, "jump") == 0) {
                 // Jump to label
                 Array j_parts = split(parts[1], '*');
