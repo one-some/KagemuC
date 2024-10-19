@@ -151,6 +151,10 @@ void assert_fail(char* msg) {
     exit(1);
 }
 
+void TODO(const char* msg) {
+    printf("[TODO] %s\n", msg);
+}
+
 bool peak(char* bigger, char* littler) {
     return memcmp(bigger, littler, strlen(littler) - 1) == 0;
 }
@@ -267,6 +271,11 @@ Array execute(const char* path) {
     };
 }
 
+void showstopper(StoryState* state) {
+    printf("GOOD BYE HOUSE IN FATA MORGANA.\n");
+    state->reached_end = true;
+}
+
 void play_nodes(StoryState* state, Array node_array) {
     Node** nodes = (Node**)node_array.entries;
 
@@ -321,6 +330,7 @@ void play_nodes(StoryState* state, Array node_array) {
                 done_with_it = true;
                 break;
             }
+            if (done_with_it) continue;
 
             if (strcmp(tag_name, "if") == 0) {
                 bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
@@ -338,6 +348,38 @@ void play_nodes(StoryState* state, Array node_array) {
                     i++;
                 }
                 state->in_if = false;
+            } else if (strcmp(tag_name, "visible_text") == 0) {
+                TODO("visible_text");
+            } else if (strcmp(tag_name, "char_setopt") == 0) {
+                TODO("char_setopt");
+            } else if (strcmp(tag_name, "char_clear_all") == 0) {
+                TODO("clear_clear_all");
+            } else if (strcmp(tag_name, "char_visible") == 0) {
+                TODO("char_visible");
+            } else if (strcmp(tag_name, "eval") == 0) {
+                TODO("eval");
+            } else if (strcmp(tag_name, "jump") == 0) {
+                // Jump to label
+                Array j_parts = split(parts[1], '*');
+                if (j_parts.length != 2) assert_fail("GAH!");
+                char* target_label = (char*)(j_parts.entries[1]);
+
+                // Check all nodes
+                for (size_t j = 0; j < node_array.length; j++) {
+                    // Not a label? not interested!
+                    if (nodes[j]->type != LABEL) continue;
+
+                    // Get rid of pipes as thats a marker ROFL
+                    char* clean = wipe_char(nodes[j]->text_content, '|');
+
+                    // Check!
+                    if (strcmp(target_label, clean) != 0) continue;
+
+                    printf("Jumped to %s\n", clean);
+                    i = j;
+                    break;
+                }
+                continue;
             } else if (strcmp(tag_name, "p") == 0) {
                 break;
             } else if (strcmp(tag_name, "l") == 0) {
@@ -350,7 +392,7 @@ void play_nodes(StoryState* state, Array node_array) {
                 if (strlen(state->speaker)) show_text(": ");
             } else {
                 printf("Tag: \"%s\"\n", nodes[i]->text_content);
-                state->reached_end = true;
+                showstopper(state);
                 break;
             }
 
@@ -405,7 +447,7 @@ int main() {
 
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
-    //play_nodes(&state, nodes);
+    play_nodes(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
 
@@ -418,7 +460,7 @@ int main() {
         u32 keys_held = hidKeysHeld();
 
         if (
-            !state->reached_end
+            !state.reached_end
             && (
                 (keys_down & KEY_A)
                 || (keys_held & KEY_Y)
