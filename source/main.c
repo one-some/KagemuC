@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "speakers.h"
+#include "sound.c"
 #include <citro2d.h>
 
 //PrintConsole top_screen;
@@ -423,7 +424,9 @@ void play_nodes(StoryState* state, Array node_array) {
 
 int main() {
     romfsInit();
+    ndspInit();
     gfxInitDefault();
+
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
@@ -431,6 +434,8 @@ int main() {
     consoleInit(GFX_BOTTOM, NULL);
 
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+
+    sound_init();
 
     clear_text();
     show_text("HI");
@@ -489,6 +494,9 @@ int main() {
 
     C2D_TextBufDelete(dialog_text_buffer);
 
+    sound_deinit();
+
+    ndspExit();
 	// Deinit libs
 	C2D_Fini();
 	C3D_Fini();
