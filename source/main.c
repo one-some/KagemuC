@@ -4,6 +4,7 @@
 #include <string.h>
 #include "speakers.h"
 #include "sound.c"
+#include "map.h"
 #include <citro2d.h>
 
 //PrintConsole top_screen;
@@ -179,6 +180,21 @@ Node* new_node(enum NodeType type) {
     node->text_content = "";
 
     return node;
+}
+
+Map parse_tag_params(Array parts) {
+    Map map = { 0 };
+    for (size_t i = 0; i < parts.length; i++) {
+        Array bits = split(parts.entries[i], '=');
+        if (bits.length != 2) continue;
+        map_add_node(
+            &map,
+            bits.entries[0],
+            wipe_char(bits.entries[1], '"')
+        );
+    }
+
+    return map;
 }
 
 Array execute(const char* path) {
@@ -363,6 +379,27 @@ void play_nodes(StoryState* state, Array node_array) {
                 TODO("eval");
             } else if (strcmp(tag_name, "title") == 0) {
                 TODO("title");
+            } else if (strcmp(tag_name, "seopt") == 0) {
+                TODO("seopt");
+            } else if (strcmp(tag_name, "image") == 0) {
+                TODO("image");
+            } else if (strcmp(tag_name, "playse") == 0) {
+                Map map = parse_tag_params(parts_array);
+                map_dump_nodes(&map);
+                char* storage = map_get(&map, "storage");
+
+                if (!storage) {
+                    printf("No storage SE\n");
+                    showstopper(state);
+                    break;
+                }
+
+                printf("Play: %s\n", storage);
+
+                char audio_path[128] = { 0 };
+                snprintf(audio_path, 128, "romfs:/sfx/%s.ogg", storage);
+                play_audio(audio_path);
+
             } else if (strcmp(tag_name, "jump") == 0) {
                 // Jump to label
                 Array j_parts = split(parts[1], '*');
@@ -441,7 +478,6 @@ int main() {
     show_text("HI");
     show_text("RO\nFL");
 
-
 	// Load graphics
     C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
 	if (!sprite_sheet) svcBreak(USERBREAK_PANIC);
@@ -454,11 +490,9 @@ int main() {
     C2D_SpriteSetPos(&maid_body, 0, 0);
     C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
 
-    play_audio("romfs:/bgm/Giselle.ogg");
-
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
-    // play_nodes(&state, nodes);
+    play_nodes(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
 
@@ -477,7 +511,7 @@ int main() {
                 || (keys_held & KEY_Y)
             )
         ) {
-            // play_nodes(&state, nodes);
+            play_nodes(&state, nodes);
         }
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
@@ -485,8 +519,8 @@ int main() {
 		C2D_SceneBegin(top);
 
         // Uncommenting anything fucks it
-		// C2D_DrawSprite(&maid_body);
-        // render_dialog();
+		C2D_DrawSprite(&maid_body);
+        render_dialog();
 
 		C3D_FrameEnd(0);
     }

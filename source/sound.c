@@ -174,7 +174,7 @@ bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_) {
 
     // If no samples were read in the last decode cycle, we're done
     if(totalBytes == 0) {
-        printf("Playback complete, press Start to exit\n");
+        printf("[dosu] Playback ova LOL\n");
         return false;
     }
 
