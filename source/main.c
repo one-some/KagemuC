@@ -12,7 +12,7 @@
 //PrintConsole bottom_screen;
 //
 
-
+C2D_Sprite* wow = NULL;
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
 
@@ -57,6 +57,8 @@ typedef struct SArray {
     size_t length;
     void** entries;
 } Array;
+
+Array sprites = { 0 };
 
 typedef struct SStoryState {
     size_t node_idx;
@@ -313,6 +315,38 @@ Array execute(const char* path) {
     };
 }
 
+void load_image(char* storage) {
+    C2D_SpriteSheet* sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
+
+    char* buffer = calloc(128, sizeof(char));
+    snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
+
+    (*sprite_sheet) = C2D_SpriteSheetLoad(buffer);
+
+	if (!*sprite_sheet) {
+        printf("NO SPRITESHEET!\n");
+        return;
+    }
+
+
+
+
+    size_t num_images = C2D_SpriteSheetCount(*sprite_sheet);
+    if (num_images != 1) {
+        printf("Weird IMAGE NUMBER: %i\n", num_images);
+        return;
+    }
+
+
+    C2D_Sprite* sprite = calloc(1, sizeof(C2D_Sprite));
+    C2D_SpriteFromSheet(sprite, *sprite_sheet, 0);
+    C2D_SpriteSetPos(sprite, 20, 20);
+    C2D_SpriteSetScale(sprite, 0.37f, 0.37f);
+    wow = sprite;
+
+    //sprites.entries[sprites.length++] = sprite;
+}
+
 void showstopper(StoryState* state) {
     printf("GOOD BYE HOUSE IN FATA MORGANA.\n");
     state->reached_end = true;
@@ -401,8 +435,6 @@ void execute_current_node(StoryState* state, Array node_array) {
         TODO("title");
     } else if (strcmp(tag_name, "seopt") == 0) {
         TODO("seopt");
-    } else if (strcmp(tag_name, "image") == 0) {
-        TODO("image");
     } else if (strcmp(tag_name, "trans") == 0) {
         TODO("trans");
     } else if (strcmp(tag_name, "wt") == 0) {
@@ -429,6 +461,12 @@ void execute_current_node(StoryState* state, Array node_array) {
         uintmax_t num = strtoumax(wait, NULL, 10);
         printf("WAITIN FOR %lli\n", num);
         state->wait_ms = (uint32_t)num;
+    } else if (strcmp(tag_name, "image") == 0) {
+        char* storage = map_get(&arg_map, "storage");
+        if (!storage) return;
+        printf("SHOWING %s\n", storage);
+        //load_image(storage);
+        showstopper(state);
 
     } else if (
         strcmp(tag_name, "playse") == 0
@@ -506,6 +544,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         show_text(text);
     } else {
         printf("Tag: \"%s\"\n", c_node->text_content);
+        map_dump_nodes(&arg_map);
         showstopper(state);
     }
 }
@@ -527,6 +566,26 @@ int main() {
 
     clear_text();
 
+
+
+
+
+    C2D_SpriteSheet sprite_sheet;
+    sprite_sheet = C2D_SpriteSheetLoad("romfs:/img/blacksozai.t3x");
+    size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
+    printf(":::::::: %i LOL\n", num_images);
+
+
+    C2D_Sprite sprite;
+    C2D_SpriteFromSheet(&sprite, sprite_sheet, 0);
+    C2D_SpriteSetPos(&sprite, 20, 20);
+    C2D_SpriteSetScale(&sprite, 0.37f, 0.37f);
+
+
+
+
+
+
 	// Load graphics
     /*
     C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
@@ -540,6 +599,7 @@ int main() {
     C2D_SpriteSetPos(&maid_body, 0, 0);
     C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
     */
+    sprites.entries = calloc(128, sizeof(C2D_Sprite*));
 
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
@@ -576,6 +636,13 @@ int main() {
         // Uncommenting anything fucks it
 		//C2D_DrawSprite(&maid_body);
         render_dialog();
+
+        // for (size_t i = 0; i < sprites.length; i++) {
+        //     C2D_Sprite* sprite = sprites.entries[i];
+        //     C2D_DrawSprite(sprite);
+        // }
+        C2D_DrawSprite(&sprite);
+        printf("WAA\n");
 
 		C3D_FrameEnd(0);
 
