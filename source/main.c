@@ -5,6 +5,7 @@
 #include "speakers.h"
 #include "sound.c"
 #include "map.h"
+#include "characters.h"
 #include <citro2d.h>
 
 //PrintConsole top_screen;
@@ -19,7 +20,10 @@ const char* ignore_list[] = {
     // Obv can't load dlls on 3ds
     "loadplugin",
     // I don't want to deal with unloading images!!
-    "freeimage"
+    "freeimage",
+    // Someday
+    "leafinit",
+    "leafopt",
 };
 
 enum NodeType {
@@ -45,6 +49,8 @@ typedef struct SStoryState {
     char* speaker;
     bool center;
     bool in_if;
+    bool italic;
+    bool bold;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -335,12 +341,21 @@ void play_nodes(StoryState* state, Array node_array) {
 
             char* tag_name = parts[0];
             Map arg_map = parse_tag_params(parts_array);
-            map_dump_nodes(&arg_map);
+            //map_dump_nodes(&arg_map);
 
             bool done_with_it = false;
             for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
                 if (strcmp(tag_name, speakers[j].tag_name) != 0) continue;
                 state->speaker = speakers[j].draw_name;
+                done_with_it = true;
+                break;
+            }
+            if (done_with_it) continue;
+
+            for (size_t j = 0; j < sizeof(characters) / sizeof(Character); j++) {
+                if (strcmp(tag_name, characters[j].name) != 0) continue;
+                printf("[hello] Speak %s\n", tag_name);
+                map_dump_nodes(&arg_map);
                 done_with_it = true;
                 break;
             }
@@ -355,14 +370,16 @@ void play_nodes(StoryState* state, Array node_array) {
 
             if (strcmp(tag_name, "if") == 0) {
                 bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
-                state->in_if = true;
-                printf("%i\n", fataend);
-                continue;
 
-                //while (strcmp(nodes[i]->text_content, "endif") != 0) {
-                //    printf("WAAAAW - %s: \"%s\"\n", type, nodes[i]->text_content);
-                //    i++;
-                //}
+                if (!fataend) {
+                    // Skip statement if its not fataend ROFL
+                    while (strcmp(nodes[i]->text_content, "endif") != 0) {
+                        i++;
+                    }
+                } else {
+                    state->in_if = true;
+                    printf("%i\n", fataend);
+                }
             } else if (strcmp(tag_name, "else") == 0 && state->in_if) {
                 while (strcmp(nodes[i]->text_content, "endif") != 0) {
                     printf("ELSECLAUSE - %s: \"%s\"\n", type, nodes[i]->text_content);
@@ -373,6 +390,8 @@ void play_nodes(StoryState* state, Array node_array) {
                 TODO("visible_text");
             } else if (strcmp(tag_name, "char_setopt") == 0) {
                 TODO("char_setopt");
+            } else if (strcmp(tag_name, "char_erase") == 0) {
+                TODO("char_erase");
             } else if (strcmp(tag_name, "char_clear_all") == 0) {
                 TODO("clear_clear_all");
             } else if (strcmp(tag_name, "char_visible") == 0) {
@@ -391,6 +410,8 @@ void play_nodes(StoryState* state, Array node_array) {
                 TODO("wt");
             } else if (strcmp(tag_name, "fadeoutse") == 0) {
                 TODO("fadeoutse");
+            } else if (strcmp(tag_name, "fadeinbgm") == 0) {
+                TODO("fadeinbgm");
             } else if (strcmp(tag_name, "layopt") == 0) {
                 TODO("layopt");
             } else if (strcmp(tag_name, "position") == 0) {
@@ -410,7 +431,11 @@ void play_nodes(StoryState* state, Array node_array) {
                 printf("WAITIN FOR %lli\n", num);
                 svcSleepThread((long long) num * 1000000LL);
 
-            } else if (strcmp(tag_name, "playse") == 0) {
+            } else if (
+                strcmp(tag_name, "playse") == 0
+                || strcmp(tag_name, "playbgm") == 0
+            ) {
+                bool is_bgm = strcmp(tag_name, "playbgm") == 0;
                 char* storage = map_get(&arg_map, "storage");
 
                 if (!storage) {
@@ -422,7 +447,12 @@ void play_nodes(StoryState* state, Array node_array) {
                 printf("Play: %s\n", storage);
 
                 char audio_path[128] = { 0 };
-                snprintf(audio_path, 128, "romfs:/sfx/%s.ogg", storage);
+                snprintf(
+                    audio_path,
+                    128,
+                    is_bgm ? "romfs:/bgm/%s.ogg" : "romfs:/sfx/%s.ogg",
+                    storage
+                );
                 play_audio(audio_path);
 
             } else if (strcmp(tag_name, "jump") == 0) {
@@ -451,16 +481,28 @@ void play_nodes(StoryState* state, Array node_array) {
                 break;
             } else if (strcmp(tag_name, "l") == 0) {
                 break;
+            } else if (strcmp(tag_name, "i") == 0) {
+                state->italic = true;
+            } else if (strcmp(tag_name, "/i") == 0) {
+                state->italic = false;
+            } else if (strcmp(tag_name, "b") == 0) {
+                state->bold = true;
+            } else if (strcmp(tag_name, "/b") == 0) {
+                state->bold = false;
             } else if (strcmp(tag_name, "r") == 0) {
                 show_text("\n");
+            } else if (strcmp(tag_name, "w") == 0) {
+                TODO("Implement w for wc");
             } else if (strcmp(tag_name, "cm") == 0) {
                 clear_text();
                 show_text(state->speaker);
                 if (strlen(state->speaker)) show_text(": ");
             } else if (strcmp(tag_name, "c") == 0) {
                 // TODO
-                1289e290dh12h  29hsh12sh1 21=-2nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
-                show_text(nodes[i]->text_content);
+                char* text = map_get(&arg_map, "text");
+                if (!text) continue;
+                printf("Text: \"%s\"\n", text);
+                show_text(text);
             } else {
                 printf("Tag: \"%s\"\n", nodes[i]->text_content);
                 showstopper(state);
@@ -499,8 +541,6 @@ int main() {
     sound_init();
 
     clear_text();
-    show_text("HI");
-    show_text("RO\nFL");
 
 	// Load graphics
     /*
