@@ -22,8 +22,6 @@
 
 // ---- DEFINITIONS ----
 
-static const char *PATH = "romfs:/sample.ogg";  // Path to Ogg Vorbis file to play
-
 static const int THREAD_AFFINITY = -1;           // Execute thread on any core
 static const int THREAD_STACK_SZ = 32 * 1024;    // 32kB stack for audio thread
 
@@ -38,7 +36,7 @@ volatile bool s_quit = false;  // Quit flag
 // ---- HELPER FUNCTIONS ----
 
 // Retrieve strings for libvorbisidec errors
-const char *parse_vorbis_error(int error)
+const char *vorbisStrError(int error)
 {
     switch(error) {
         case OV_FALSE:
@@ -97,8 +95,8 @@ void waitForInput(void) {
 
 // Audio initialisation code
 // This sets up NDSP and our primary audio buffer
-bool audio_init(OggVorbis_File *vorbis_file_) {
-    vorbis_info *vi = ov_info(vorbis_file_, -1);
+bool audioInit(OggVorbis_File *vorbisFile_) {
+    vorbis_info *vi = ov_info(vorbisFile_, -1);
 
     // Setup NDSP
     ndspChnReset(0);
@@ -146,8 +144,8 @@ void audioExit(void) {
 }
 
 // Main audio decoding logic
-// This function pulls and decodes audio samples from vorbis_file_ to fill waveBuf_
-bool fillBuffer(OggVorbis_File *vorbis_file_, ndspWaveBuf *waveBuf_) {
+// This function pulls and decodes audio samples from vorbisFile_ to fill waveBuf_
+bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_) {
     #ifdef DEBUG
     // Setup timer for performance stats
     TickCounter timer;
@@ -160,14 +158,14 @@ bool fillBuffer(OggVorbis_File *vorbis_file_, ndspWaveBuf *waveBuf_) {
         int16_t *buffer = waveBuf_->data_pcm16 + (totalBytes / sizeof(s16));
         const size_t bufferSize = (waveBuf_->nsamples * sizeof(s16) - totalBytes);
 
-        // Decode bufferSize bytes from vorbis_file_ into buffer,
+        // Decode bufferSize bytes from vorbisFile_ into buffer,
         // storing the number of bytes that were read (or error)
-        const int bytesRead = ov_read(vorbis_file_, (char *)buffer, bufferSize, NULL);
+        const int bytesRead = ov_read(vorbisFile_, (char *)buffer, bufferSize, NULL);
         if(bytesRead <= 0) {
             if(bytesRead == 0) break;  // No error here
 
             printf("ov_read: error %d (%s)", bytesRead,
-                   parse_vorbis_error(bytesRead));
+                   vorbisStrError(bytesRead));
             break;
         }
         
@@ -215,8 +213,8 @@ void audioCallback(void *const nul_) {
 
 // Audio thread
 // This handles calling the decoder function to fill NDSP buffers as necessary
-void audioThread(void *const vorbis_file_) {
-    OggVorbis_File *const vorbis_file = (OggVorbis_File *)vorbis_file_;
+void audioThread(void *const vorbisFile_) {
+    OggVorbis_File *const vorbisFile = (OggVorbis_File *)vorbisFile_;
 
     while(!s_quit) {  // Whilst the quit flag is unset,
                       // search our waveBufs and fill any that aren't currently
@@ -226,7 +224,7 @@ void audioThread(void *const vorbis_file_) {
                 continue;
             }
             
-            if(!fillBuffer(vorbis_file, &s_waveBufs[i])) {   // Playback complete
+            if(!fillBuffer(vorbisFile, &s_waveBufs[i])) {   // Playback complete
                 return;
             }
         }
@@ -238,27 +236,26 @@ void audioThread(void *const vorbis_file_) {
     }
 }
 
-void play_ogg_file(const char* path) {
-    OggVorbis_File vorbis_file;
-    FILE* file = fopen(path, "rb");
+void play_audio(const char* path) {
+    OggVorbis_File* vorbis_file = calloc(1, sizeof(OggVorbis_File));
 
-    int error = ov_open(file, &vorbis_file, NULL, 0);
+    FILE *fh = fopen(path, "rb");
+    int error = ov_open(fh, vorbis_file, NULL, 0);
     if(error) {
         printf("Failed to open file: error %d (%s)\n", error,
-               parse_vorbis_error(error));
+               vorbisStrError(error));
         // Only fclose manually if ov_open failed.
         // If ov_open succeeds, fclose happens in ov_clear.
-        fclose(file);
-        return;
+        fclose(fh);
+        waitForInput();
     }
 
-    // Attempt audio_init
-    if(!audio_init(&vorbis_file)) {
+    // Attempt audioInit
+    if(!audioInit(vorbis_file)) {
         printf("Failed to initialise audio\n");
-        ov_clear(&vorbis_file);
+        ov_clear(vorbis_file);
         return;
     }
-
 
     // Set the thread priority to the main thread's priority ...
     int32_t priority = 0x30;
@@ -269,23 +266,17 @@ void play_ogg_file(const char* path) {
     priority = priority < 0x18 ? 0x18 : priority;
     priority = priority > 0x3F ? 0x3F : priority;
 
-    // Start the thread, passing the address of our vorbis_file as an argument.
-    Thread threadId = threadCreate(
-        audioThread,
-        &vorbis_file,
-        THREAD_STACK_SZ,
-        priority,
-        THREAD_AFFINITY,
-        false
-    );
+    // Start the thread, passing the address of our vorbisFile as an argument.
+    const Thread threadId = threadCreate(audioThread, vorbis_file,
+                                         THREAD_STACK_SZ, priority,
+                                         THREAD_AFFINITY, false);
     printf("Created audio thread %p\n", threadId);
 }
 
 void sound_init() {
     LightEvent_Init(&s_event, RESET_ONESHOT);
-
-    // Set the ndsp sound frame callback which signals our audioThread
     ndspSetCallback(audioCallback, NULL);
+    printf("[initalized sound]");
 }
 
 void sound_deinit() {
@@ -293,36 +284,9 @@ void sound_deinit() {
     LightEvent_Signal(&s_event);
 
     // Free the audio thread
-    threadJoin(threadId, UINT64_MAX);
-    threadFree(threadId);
+    //threadJoin(threadId, UINT64_MAX);
+    //threadFree(threadId);
 
     // Cleanup audio things and de-init platform features
     audioExit();
-    ndspExit();
-    ov_clear(&vorbis_file);
-
-    romfsExit();
-    gfxExit();
-}
-
-int main(int argc, char* argv[]) {
-
-    // Standard main loop
-    while(aptMainLoop())
-    {
-        gspWaitForVBlank();
-        gfxSwapBuffers();
-        hidScanInput();
-
-        // Your code goes here
-        u32 kDown = hidKeysDown();
-        if(kDown & KEY_START) {
-            printf("\n** Quitting... **\n");
-            break;
-        }
-    }
-
-    // Signal audio thread to quit
-
-    return EXIT_SUCCESS;
 }

@@ -454,9 +454,11 @@ int main() {
     C2D_SpriteSetPos(&maid_body, 0, 0);
     C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
 
+    play_audio("romfs:/bgm/Giselle.ogg");
+
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
-    play_nodes(&state, nodes);
+    // play_nodes(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
 
@@ -475,16 +477,16 @@ int main() {
                 || (keys_held & KEY_Y)
             )
         ) {
-            play_nodes(&state, nodes);
+            // play_nodes(&state, nodes);
         }
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		C2D_TargetClear(top, C2D_Color32f(0.5f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-		C2D_DrawSprite(&maid_body);
-
-        render_dialog();
+        // Uncommenting anything fucks it
+		// C2D_DrawSprite(&maid_body);
+        // render_dialog();
 
 		C3D_FrameEnd(0);
     }
