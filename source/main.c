@@ -334,6 +334,8 @@ void play_nodes(StoryState* state, Array node_array) {
             // }
 
             char* tag_name = parts[0];
+            Map arg_map = parse_tag_params(parts_array);
+            map_dump_nodes(&arg_map);
 
             bool done_with_it = false;
             for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
@@ -383,10 +385,33 @@ void play_nodes(StoryState* state, Array node_array) {
                 TODO("seopt");
             } else if (strcmp(tag_name, "image") == 0) {
                 TODO("image");
+            } else if (strcmp(tag_name, "trans") == 0) {
+                TODO("trans");
+            } else if (strcmp(tag_name, "wt") == 0) {
+                TODO("wt");
+            } else if (strcmp(tag_name, "fadeoutse") == 0) {
+                TODO("fadeoutse");
+            } else if (strcmp(tag_name, "layopt") == 0) {
+                TODO("layopt");
+            } else if (strcmp(tag_name, "position") == 0) {
+                TODO("position");
+            } else if (strcmp(tag_name, "backlay") == 0) {
+                TODO("backlay");
+            } else if (strcmp(tag_name, "font") == 0) {
+                TODO("font");
+            } else if (strcmp(tag_name, "wait") == 0) {
+                char* wait = map_get(&arg_map, "time");
+                if (!wait) {
+                    printf("WTF lol\n");
+                    continue;
+                }
+
+                uintmax_t num = strtoumax(wait, NULL, 10);
+                printf("WAITIN FOR %lli\n", num);
+                svcSleepThread((long long) num * 1000000LL);
+
             } else if (strcmp(tag_name, "playse") == 0) {
-                Map map = parse_tag_params(parts_array);
-                map_dump_nodes(&map);
-                char* storage = map_get(&map, "storage");
+                char* storage = map_get(&arg_map, "storage");
 
                 if (!storage) {
                     printf("No storage SE\n");
@@ -432,6 +457,10 @@ void play_nodes(StoryState* state, Array node_array) {
                 clear_text();
                 show_text(state->speaker);
                 if (strlen(state->speaker)) show_text(": ");
+            } else if (strcmp(tag_name, "c") == 0) {
+                // TODO
+                1289e290dh12h  29hsh12sh1 21=-2nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
+                show_text(nodes[i]->text_content);
             } else {
                 printf("Tag: \"%s\"\n", nodes[i]->text_content);
                 showstopper(state);
@@ -441,12 +470,7 @@ void play_nodes(StoryState* state, Array node_array) {
             continue;
         } else if (nodes[i]->type == TEXT) {
             nodes[i]->text_content = wipe_char(nodes[i]->text_content, '\n');
-
-            //consoleSelect(&top_screen);
-            //printf("%s", nodes[i]->text_content);
             show_text(nodes[i]->text_content);
-            //printf("[text] %s: \"%s\"\n", state->speaker, nodes[i]->text_content);
-            //consoleSelect(&bottom_screen);
             continue;
         }
 
@@ -479,6 +503,7 @@ int main() {
     show_text("RO\nFL");
 
 	// Load graphics
+    /*
     C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
 	if (!sprite_sheet) svcBreak(USERBREAK_PANIC);
 
@@ -489,6 +514,7 @@ int main() {
     C2D_SpriteFromSheet(&maid_body, sprite_sheet, num_images - 1);
     C2D_SpriteSetPos(&maid_body, 0, 0);
     C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
+    */
 
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
@@ -519,14 +545,14 @@ int main() {
 		C2D_SceneBegin(top);
 
         // Uncommenting anything fucks it
-		C2D_DrawSprite(&maid_body);
+		//C2D_DrawSprite(&maid_body);
         render_dialog();
 
 		C3D_FrameEnd(0);
     }
 
 	// Delete graphics
-	C2D_SpriteSheetFree(sprite_sheet);
+	//C2D_SpriteSheetFree(sprite_sheet);
 
     C2D_TextBufDelete(dialog_text_buffer);
 
