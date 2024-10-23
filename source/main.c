@@ -7,6 +7,7 @@
 #include "map.h"
 #include "characters.h"
 #include <citro2d.h>
+#include <unistd.h>
 
 //PrintConsole top_screen;
 //PrintConsole bottom_screen;
@@ -329,14 +330,27 @@ void load_image(char* storage, StoryState* state) {
         char* buffer = calloc(128, sizeof(char));
         snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
 
+        if (access(buffer, F_OK) != 0) {
+            printf("WHAAT NO FILE!\n");
+            showstopper(state);
+            return;
+        }
+
         printf("Loading from '%s'\n", buffer);
 
-        (*sprite_sheet) = C2D_SpriteSheetLoad(buffer);
+        C2D_SpriteSheet ss = C2D_SpriteSheetLoad(buffer);
+        if (!ss) {
+            printf("NO SPRITESHEET WHEN LOAD!\n");
+            showstopper(state);
+            return;
+        }
+
+        (*sprite_sheet) = ss;
         map_add_node(&spritesheets, storage, sprite_sheet);
     }
 
 	if (!*sprite_sheet) {
-        printf("NO SPRITESHEET!\n");
+        printf("NO SPRITESHEET AFTER LOOKUP!\n");
         showstopper(state);
         return;
     }
