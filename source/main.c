@@ -322,6 +322,7 @@ void showstopper(StoryState* state) {
 }
 
 void load_image(char* storage, StoryState* state) {
+    // VRAM ISSUE!?
     C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
 
     printf("[img] sscache len; %i\n", spritesheets.node_count);
