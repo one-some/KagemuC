@@ -14,6 +14,7 @@
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
+Map spritesheets = { 0 };
 
 const char* ignore_list[] = {
     // Obv can't load dlls on 3ds
@@ -314,16 +315,29 @@ Array execute(const char* path) {
     };
 }
 
-void load_image(char* storage) {
-    C2D_SpriteSheet* sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
+void showstopper(StoryState* state) {
+    printf("GOOD BYE HOUSE IN FATA MORGANA.\n");
+    state->reached_end = true;
+}
 
-    char* buffer = calloc(128, sizeof(char));
-    snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
+void load_image(char* storage, StoryState* state) {
+    C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
 
-    (*sprite_sheet) = C2D_SpriteSheetLoad(buffer);
+    if (!sprite_sheet) {
+        sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
+
+        char* buffer = calloc(128, sizeof(char));
+        snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
+
+        printf("Loading from '%s'\n", buffer);
+
+        (*sprite_sheet) = C2D_SpriteSheetLoad(buffer);
+        map_add_node(&spritesheets, storage, sprite_sheet);
+    }
 
 	if (!*sprite_sheet) {
         printf("NO SPRITESHEET!\n");
+        showstopper(state);
         return;
     }
 
@@ -345,11 +359,6 @@ void load_image(char* storage) {
         sprite->params.pos.w / 600.0f * 240.0f
     );
     sprites.entries[sprites.length++] = sprite;
-}
-
-void showstopper(StoryState* state) {
-    printf("GOOD BYE HOUSE IN FATA MORGANA.\n");
-    state->reached_end = true;
 }
 
 void execute_current_node(StoryState* state, Array node_array) {
@@ -464,8 +473,7 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
-        printf("SHOWING %s\n", storage);
-        load_image(storage);
+        load_image(storage, state);
     } else if (
         strcmp(tag_name, "playse") == 0
         || strcmp(tag_name, "playbgm") == 0

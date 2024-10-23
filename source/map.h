@@ -2,7 +2,7 @@
 // don't meet my imaginary arbitrary standards. ROFL
 typedef struct SMapNode {
     char* key;
-    char* value;
+    void* value;
 } MapNode;
 
 typedef struct SMap {
@@ -10,7 +10,7 @@ typedef struct SMap {
     MapNode** nodes;
 } Map;
 
-void map_add_node(Map* map, char* key, char* value) {
+void map_add_node(Map* map, char* key, void* value) {
     MapNode* node = calloc(1, sizeof(MapNode));
     node->key = key;
     node->value = value;
@@ -23,7 +23,7 @@ void map_add_node(Map* map, char* key, char* value) {
     map->nodes = nodes;
 }
 
-char* map_get(Map* map, char* key) {
+void* map_get(Map* map, char* key) {
     for (size_t i = 0; i < map->node_count; i++) {
         if (strcmp(key, map->nodes[i]->key) != 0) continue;
         return map->nodes[i]->value;
@@ -32,9 +32,10 @@ char* map_get(Map* map, char* key) {
 }
 
 void map_dump_nodes(Map* map) {
+    // Must be string...
     printf("Nodes:\n");
 
     for (size_t i = 0; i < map->node_count; i++) {
-        printf("- '%s': '%s'\n", map->nodes[i]->key, map->nodes[i]->value);
+        printf("- '%s': '%s'\n", map->nodes[i]->key, (char*)map->nodes[i]->value);
     }
 }
