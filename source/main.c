@@ -17,6 +17,7 @@ C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
 Map spritesheets = { 0 };
 
+char* sprite_sheet_storage;
 C2D_SpriteSheet single_sprite_sheet = NULL;
 C2D_Sprite* single_sprite = NULL;
 
@@ -332,17 +333,20 @@ void load_image(char* storage, StoryState* state) {
 
     // svcSleepThread((long long) 500 *  1000000LL);
 
-    if (single_sprite_sheet) {
-        C2D_SpriteSheetFree(single_sprite_sheet);
+    if (strcmp(sprite_sheet_storage, storage) != 0) {
+        if (single_sprite_sheet) {
+            C2D_SpriteSheetFree(single_sprite_sheet);
+        }
+
+        //single_sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
+
+        char* buffer = calloc(128, sizeof(char));
+        snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
+
+        printf("Loading from '%s'\n", buffer);
+        single_sprite_sheet = C2D_SpriteSheetLoad(buffer);
+        sprite_sheet_storage = storage;
     }
-
-    //single_sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
-
-    char* buffer = calloc(128, sizeof(char));
-    snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
-
-    printf("Loading from '%s'\n", buffer);
-    single_sprite_sheet = C2D_SpriteSheetLoad(buffer);
 
     if (!single_sprite_sheet) {
         printf("NO SPRITESHEET WHEN LOAD!\n");
@@ -580,19 +584,8 @@ int main() {
 
     clear_text();
 
-    C2D_SpriteSheet sprite_sheet;
-    sprite_sheet = C2D_SpriteSheetLoad("romfs:/img/獣_左2動揺.t3x");
-    if (!sprite_sheet) {
-        printf("YARG");
-    }
     // size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
     // printf(":::::::: %i LOL\n", num_images);
-
-
-    C2D_Sprite sprite;
-    C2D_SpriteFromSheet(&sprite, sprite_sheet, 0);
-    C2D_SpriteSetPos(&sprite, 20, 20);
-    C2D_SpriteSetScale(&sprite, 0.37f, 0.37f);
 
     sprites.entries = calloc(128, sizeof(C2D_Sprite*));
 
