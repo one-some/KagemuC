@@ -17,6 +17,9 @@ C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
 Map spritesheets = { 0 };
 
+C2D_SpriteSheet single_sprite_sheet = NULL;
+C2D_Sprite* single_sprite = NULL;
+
 const char* ignore_list[] = {
     // Obv can't load dlls on 3ds
     "loadplugin",
@@ -323,57 +326,47 @@ void showstopper(StoryState* state) {
 
 void load_image(char* storage, StoryState* state) {
     // VRAM ISSUE!?
-    C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
+    //C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
 
-    printf("[img] sscache len; %i\n", spritesheets.node_count);
+    //printf("[img] sscache len; %i\n", spritesheets.node_count);
 
-    svcSleepThread((long long) 500 *  1000000LL);
+    // svcSleepThread((long long) 500 *  1000000LL);
 
-    if (!sprite_sheet) {
-        sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
-
-        char* buffer = calloc(128, sizeof(char));
-        snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
-
-        printf("Loading from '%s'\n", buffer);
-
-        C2D_SpriteSheet ss = C2D_SpriteSheetLoad(buffer);
-        if (!ss) {
-            printf("NO SPRITESHEET WHEN LOAD!\n");
-            showstopper(state);
-            return;
-        }
-
-        (*sprite_sheet) = ss;
-        map_add_node(&spritesheets, storage, sprite_sheet);
-    } else {
-        printf("[img] '%s' loaded from cache\n", storage);
+    if (single_sprite_sheet) {
+        C2D_SpriteSheetFree(single_sprite_sheet);
     }
 
-	if (!*sprite_sheet) {
-        printf("NO SPRITESHEET AFTER LOOKUP!\n");
+    //single_sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
+
+    char* buffer = calloc(128, sizeof(char));
+    snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
+
+    printf("Loading from '%s'\n", buffer);
+    single_sprite_sheet = C2D_SpriteSheetLoad(buffer);
+
+    if (!single_sprite_sheet) {
+        printf("NO SPRITESHEET WHEN LOAD!\n");
+        showstopper(state);
+        return;
+    }
+    //map_add_node(&spritesheets, storage, sprite_sheet);
+
+    size_t num_images = C2D_SpriteSheetCount(single_sprite_sheet);
+    if (num_images != 1) {
+        printf("Weird IMAGE NUMBER: %i\n", num_images);
         showstopper(state);
         return;
     }
 
 
-
-
-    size_t num_images = C2D_SpriteSheetCount(*sprite_sheet);
-    if (num_images != 1) {
-        printf("Weird IMAGE NUMBER: %i\n", num_images);
-        return;
-    }
-
-
-    C2D_Sprite* sprite = calloc(1, sizeof(C2D_Sprite));
-    C2D_SpriteFromSheet(sprite, *sprite_sheet, 0);
-    C2D_SpriteSetScale(
-        sprite,
-        sprite->params.pos.w / 800.0f * 400.0f,
-        sprite->params.pos.w / 600.0f * 240.0f
-    );
-    sprites.entries[sprites.length++] = sprite;
+    single_sprite = calloc(1, sizeof(C2D_Sprite));
+    C2D_SpriteFromSheet(single_sprite, single_sprite_sheet, 0);
+    //C2D_SpriteSetScale(
+    //    single_sprite,
+    //    single_sprite->params.pos.w / 800.0f * 400.0f,
+    //    single_sprite->params.pos.w / 600.0f * 240.0f
+    //);
+    //sprites.entries[sprites.length++] = sprite;
 }
 
 void execute_current_node(StoryState* state, Array node_array) {
@@ -635,10 +628,14 @@ int main() {
 		C2D_TargetClear(top, C2D_Color32f(0.5f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-        for (size_t i = 0; i < sprites.length; i++) {
-            C2D_Sprite* sprite = sprites.entries[i];
-            C2D_DrawSprite(sprite);
+        if (single_sprite) {
+            C2D_DrawSprite(single_sprite);
         }
+
+        //for (size_t i = 0; i < sprites.length; i++) {
+        //    C2D_Sprite* sprite = sprites.entries[i];
+        //    C2D_DrawSprite(sprite);
+        //}
 
         render_dialog();
 
