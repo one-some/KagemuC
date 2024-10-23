@@ -12,7 +12,6 @@
 //PrintConsole bottom_screen;
 //
 
-C2D_Sprite* wow = NULL;
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
 
@@ -340,11 +339,12 @@ void load_image(char* storage) {
 
     C2D_Sprite* sprite = calloc(1, sizeof(C2D_Sprite));
     C2D_SpriteFromSheet(sprite, *sprite_sheet, 0);
-    C2D_SpriteSetPos(sprite, 20, 20);
-    C2D_SpriteSetScale(sprite, 0.37f, 0.37f);
-    wow = sprite;
-
-    //sprites.entries[sprites.length++] = sprite;
+    C2D_SpriteSetScale(
+        sprite,
+        sprite->params.pos.w / 800.0f * 400.0f,
+        sprite->params.pos.w / 600.0f * 240.0f
+    );
+    sprites.entries[sprites.length++] = sprite;
 }
 
 void showstopper(StoryState* state) {
@@ -465,9 +465,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
         printf("SHOWING %s\n", storage);
-        //load_image(storage);
-        showstopper(state);
-
+        load_image(storage);
     } else if (
         strcmp(tag_name, "playse") == 0
         || strcmp(tag_name, "playbgm") == 0
@@ -545,7 +543,7 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else {
         printf("Tag: \"%s\"\n", c_node->text_content);
         map_dump_nodes(&arg_map);
-        showstopper(state);
+        //showstopper(state);
     }
 }
 
@@ -566,14 +564,13 @@ int main() {
 
     clear_text();
 
-
-
-
-
     C2D_SpriteSheet sprite_sheet;
-    sprite_sheet = C2D_SpriteSheetLoad("romfs:/img/blacksozai.t3x");
-    size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
-    printf(":::::::: %i LOL\n", num_images);
+    sprite_sheet = C2D_SpriteSheetLoad("romfs:/img/獣_左2動揺.t3x");
+    if (!sprite_sheet) {
+        printf("YARG");
+    }
+    // size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
+    // printf(":::::::: %i LOL\n", num_images);
 
 
     C2D_Sprite sprite;
@@ -581,24 +578,6 @@ int main() {
     C2D_SpriteSetPos(&sprite, 20, 20);
     C2D_SpriteSetScale(&sprite, 0.37f, 0.37f);
 
-
-
-
-
-
-	// Load graphics
-    /*
-    C2D_SpriteSheet sprite_sheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
-	if (!sprite_sheet) svcBreak(USERBREAK_PANIC);
-
-    size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
-    printf("LOL: %i\n", num_images);
-
-    C2D_Sprite maid_body;
-    C2D_SpriteFromSheet(&maid_body, sprite_sheet, num_images - 1);
-    C2D_SpriteSetPos(&maid_body, 0, 0);
-    C2D_SpriteSetScale(&maid_body, 0.37f, 0.37f);
-    */
     sprites.entries = calloc(128, sizeof(C2D_Sprite*));
 
     StoryState state = { 0 };
@@ -633,16 +612,12 @@ int main() {
 		C2D_TargetClear(top, C2D_Color32f(0.5f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-        // Uncommenting anything fucks it
-		//C2D_DrawSprite(&maid_body);
-        render_dialog();
+        for (size_t i = 0; i < sprites.length; i++) {
+            C2D_Sprite* sprite = sprites.entries[i];
+            C2D_DrawSprite(sprite);
+        }
 
-        // for (size_t i = 0; i < sprites.length; i++) {
-        //     C2D_Sprite* sprite = sprites.entries[i];
-        //     C2D_DrawSprite(sprite);
-        // }
-        C2D_DrawSprite(&sprite);
-        printf("WAA\n");
+        render_dialog();
 
 		C3D_FrameEnd(0);
 
