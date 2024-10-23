@@ -324,17 +324,15 @@ void showstopper(StoryState* state) {
 void load_image(char* storage, StoryState* state) {
     C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
 
+    printf("[img] sscache len; %i\n", spritesheets.node_count);
+
+    svcSleepThread((long long) 500 *  1000000LL);
+
     if (!sprite_sheet) {
         sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
 
         char* buffer = calloc(128, sizeof(char));
         snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
-
-        if (access(buffer, F_OK) != 0) {
-            printf("WHAAT NO FILE!\n");
-            showstopper(state);
-            return;
-        }
 
         printf("Loading from '%s'\n", buffer);
 
@@ -347,6 +345,8 @@ void load_image(char* storage, StoryState* state) {
 
         (*sprite_sheet) = ss;
         map_add_node(&spritesheets, storage, sprite_sheet);
+    } else {
+        printf("[img] '%s' loaded from cache\n", storage);
     }
 
 	if (!*sprite_sheet) {
