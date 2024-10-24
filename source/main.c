@@ -94,7 +94,7 @@ char* ch_append(char* string, char new) {
 
 char* wipe_char(char* string, char devil) {
     size_t len = strlen(string);
-    char* new = calloc(len, sizeof(char));
+    char* new = calloc(len + 1, sizeof(char));
     size_t new_i = 0;
 
     for (size_t i = 0; i < len; i++) {
@@ -169,7 +169,6 @@ void show_text(StoryState* state, char* in_text, bool center) {
     state->center = center;
     shown_dialog_text = mastrcat(shown_dialog_text, in_text);
     printf("[txt] '%s'\n", in_text);
-    printf("[txti] '%i'\n", in_text[0]);
 }
 
 void clear_text() {
@@ -451,7 +450,7 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     char* tag_name = parts[0];
     Map arg_map = parse_tag_params(parts_array);
-    //map_dump_nodes(&arg_map);
+    map_dump_nodes(&arg_map);
 
     for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
         if (strcmp(tag_name, speakers[j].tag_name) != 0) continue;
@@ -608,6 +607,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         // TODO
         char* text = map_get(&arg_map, "text");
         if (!text) return;
+        printf("[text MAJOR] '%s'\n", text);
         show_text(state, text, true);
     } else {
         printf("Tag: \"%s\"\n", c_node->text_content);
