@@ -165,9 +165,11 @@ char* mastrcat(char* start, char* second) {
 }
 
 void show_text(StoryState* state, char* in_text, bool center) {
+    in_text = wipe_char(in_text, '\t');
     state->center = center;
     shown_dialog_text = mastrcat(shown_dialog_text, in_text);
     printf("[txt] '%s'\n", in_text);
+    printf("[txti] '%i'\n", in_text[0]);
 }
 
 void clear_text() {
@@ -447,10 +449,6 @@ void execute_current_node(StoryState* state, Array node_array) {
     Array parts_array = parse_bits(c_node->text_content);
     char** parts = (char**)parts_array.entries;
 
-    // for (size_t i = 0; i < parts_array.length; i++) {
-    //     printf(" [pa] '%s'\n", parts[i]);
-    // }
-
     char* tag_name = parts[0];
     Map arg_map = parse_tag_params(parts_array);
     //map_dump_nodes(&arg_map);
@@ -638,7 +636,7 @@ int main() {
     // size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
     // printf(":::::::: %i LOL\n", num_images);
     //
-    font = C2D_FontLoad("romfs:/liberationitalic.bcfnt");
+    font = C2D_FontLoad("romfs:/DroidSerif.bcfnt");
 
     sprites.entries = calloc(128, sizeof(C2D_Sprite*));
 
@@ -671,7 +669,7 @@ int main() {
         }
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-		C2D_TargetClear(top, C2D_Color32f(0.5f, 0.0f, 0.0f, 1.0f));
+		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
         if (single_sprite) {
