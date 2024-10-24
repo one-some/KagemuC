@@ -22,7 +22,7 @@ Array split_string(char* string, char delimiter) {
     Array out = { 0 };
 
     for (size_t i = 0; i < max_len; i++) {
-        if (!buf) buf = calloc(max_len - i, sizeof(char));
+        if (!buf) buf = calloc(max_len - i + 1, sizeof(char));
 
         if (string[i] == delimiter) {
             // Optimize size

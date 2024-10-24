@@ -21,6 +21,7 @@ Map spritesheets = { 0 };
 char* sprite_sheet_storage;
 C2D_SpriteSheet single_sprite_sheet = NULL;
 C2D_Sprite* single_sprite = NULL;
+C2D_Font font;
 
 const char* ignore_list[] = {
     // Obv can't load dlls on 3ds
@@ -70,6 +71,7 @@ Array sprites = { 0 };
 typedef struct SStoryState {
     size_t node_idx;
     bool reached_end;
+    size_t nodes_executed;
     char* speaker;
     bool center;
     bool in_if;
@@ -119,9 +121,12 @@ Array parse_bits(char* string) {
         }
 
         if (*string == '"') {
-            do {
-            buf[strlen(buf)] = *string;
-            } while (*++string != '"' && *string != '\0');
+            buf[strlen(buf)] = '"';
+            while (*++string && *string != '"') {
+                buf[strlen(buf)] = *string;
+            }
+            // Add closing quote
+            if (*string) buf[strlen(buf)] = *string;
         } else {
             buf[strlen(buf)] = *string;
         }
@@ -159,16 +164,17 @@ char* mastrcat(char* start, char* second) {
     return out;
 }
 
-void show_text(char* in_text) {
+void show_text(StoryState* state, char* in_text, bool center) {
+    state->center = center;
     shown_dialog_text = mastrcat(shown_dialog_text, in_text);
-    printf("[hyy] '%s'\n", shown_dialog_text);
+    printf("[txt] '%s'\n", in_text);
 }
 
 void clear_text() {
     shown_dialog_text = "";
 }
 
-void render_dialog() {
+void render_dialog(StoryState* state) {
     C2D_TextBufClear(dialog_text_buffer);
 
     char buffer[4096];
@@ -176,17 +182,31 @@ void render_dialog() {
 
     snprintf(buffer, sizeof(buffer), "%s", shown_dialog_text);
 
-    C2D_TextParse(&dialog_ct, dialog_text_buffer, buffer);
+    uint32_t flags = C2D_WithColor | C2D_WordWrap;
+    float x = 20.0;
+    float y = 180.0f;
+
+    if (state->center) {
+        flags |= C2D_AlignCenter;
+
+        x = 400.0f / 2.0f;
+
+    } else {
+        flags |= C2D_AlignLeft;
+    }
+
+    C2D_TextFontParse(&dialog_ct, font, dialog_text_buffer, buffer);
     C2D_TextOptimize(&dialog_ct);
     C2D_DrawText(
         &dialog_ct,
-        C2D_AlignLeft | C2D_WithColor,
-        20.0f,
-        200.0f,
+        flags,
+        x,
+        y,
         0.5f,
-        0.5f,
-        0.5f,
-        0xFFFFFFFF
+        0.6f,
+        0.6f,
+        0xFFFFFFFF,
+        400.0f - 40.0f
     );
 }
 
@@ -227,6 +247,12 @@ Map parse_tag_params(Array parts) {
     for (size_t i = 0; i < parts.length; i++) {
         Array bits = split_string(parts.entries[i], '=');
         if (bits.length != 2) continue;
+
+        //printf("   [core] '%s'\n", parts.entries[i]);
+        //for (size_t j = 0; j < bits.length; j++) {
+        //    printf("   [par] [%i] '%s'\n", j, bits.entries[j]);
+        //}
+
         map_add_node(
             &map,
             bits.entries[0],
@@ -400,6 +426,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         return;
     }
 
+    state->nodes_executed++;
     Node* c_node = nodes[state->node_idx];
 
     if (c_node->type == COMMENT) return;
@@ -409,15 +436,20 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     if (c_node->type == TEXT) {
         nodes[state->node_idx]->text_content = wipe_char(c_node->text_content, '\n');
-        show_text(c_node->text_content);
+        show_text(state, c_node->text_content, false);
+        svcSleepThread((long long) 100 *  1000000LL);
         return;
     }
 
-    printf("\n[-] %s\n", c_node->text_content);
+    printf("\n[-] [%i] %s\n", state->nodes_executed, c_node->text_content);
 
     // Parse nodes into parts
     Array parts_array = parse_bits(c_node->text_content);
     char** parts = (char**)parts_array.entries;
+
+    // for (size_t i = 0; i < parts_array.length; i++) {
+    //     printf(" [pa] '%s'\n", parts[i]);
+    // }
 
     char* tag_name = parts[0];
     Map arg_map = parse_tag_params(parts_array);
@@ -442,6 +474,7 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     if (strcmp(tag_name, "if") == 0) {
         bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
+        printf("[if] FATAEND: %i\n", fataend);
 
         if (!fataend) {
             // Skip statement if its not fataend ROFL
@@ -450,7 +483,6 @@ void execute_current_node(StoryState* state, Array node_array) {
             }
         } else {
             state->in_if = true;
-            printf("%i\n", fataend);
         }
     } else if (strcmp(tag_name, "else") == 0 && state->in_if) {
         while (strcmp(nodes[state->node_idx]->text_content, "endif") != 0) {
@@ -499,7 +531,7 @@ void execute_current_node(StoryState* state, Array node_array) {
 
         uintmax_t num = strtoumax(wait, NULL, 10);
         printf("WAITIN FOR %lli\n", num);
-        state->wait_ms = (uint32_t)num;
+        //state->wait_ms = (uint32_t)num;
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
@@ -567,20 +599,18 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "/b") == 0) {
         state->bold = false;
     } else if (strcmp(tag_name, "r") == 0) {
-        show_text("\n");
+        show_text(state, "\n", false);
     } else if (strcmp(tag_name, "w") == 0) {
         TODO("Implement w for wc");
     } else if (strcmp(tag_name, "cm") == 0) {
         clear_text();
-        show_text(state->speaker);
-        if (strlen(state->speaker)) show_text(": ");
+        show_text(state, state->speaker, false);
+        if (strlen(state->speaker)) show_text(state, ": ", false);
     } else if (strcmp(tag_name, "c") == 0) {
         // TODO
         char* text = map_get(&arg_map, "text");
-        printf("TAAA\n");
         if (!text) return;
-        printf("Text: \"%s\"\n", text);
-        show_text(text);
+        show_text(state, text, true);
     } else {
         printf("Tag: \"%s\"\n", c_node->text_content);
         map_dump_nodes(&arg_map);
@@ -607,6 +637,8 @@ int main() {
 
     // size_t num_images = C2D_SpriteSheetCount(sprite_sheet);
     // printf(":::::::: %i LOL\n", num_images);
+    //
+    font = C2D_FontLoad("romfs:/liberationitalic.bcfnt");
 
     sprites.entries = calloc(128, sizeof(C2D_Sprite*));
 
@@ -651,7 +683,7 @@ int main() {
         //    C2D_DrawSprite(sprite);
         //}
 
-        render_dialog();
+        render_dialog(&state);
 
 		C3D_FrameEnd(0);
 
