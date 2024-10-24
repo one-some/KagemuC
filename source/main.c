@@ -7,6 +7,7 @@
 #include "map.h"
 #include "characters.h"
 #include <citro2d.h>
+#include "vinkit/array.h"
 #include <unistd.h>
 
 //PrintConsole top_screen;
@@ -53,15 +54,16 @@ enum NodeType {
     LABEL,
 };
 
-typedef struct SNode {
+typedef struct Node {
     enum NodeType type;
     char* text_content;
 } Node;
 
-typedef struct SArray {
-    size_t length;
-    void** entries;
-} Array;
+typedef struct ParsedArgs {
+    Array args;
+    Map kwargs;
+} ParsedArgs;
+
 
 Array sprites = { 0 };
 
@@ -101,29 +103,24 @@ char* wipe_char(char* string, char devil) {
     return new;
 }
 
-Array split(char* string, char delimiter) {
-    size_t space_count = 0;
-    for (size_t i = 0; i < strlen(string); i++) {
-        if (string[i] == delimiter) space_count++;
-    }
+Array parse_bits(char* string) {
+    Array bits = { 0 };
 
-    char** parts = calloc(space_count, sizeof(char*));
-    parts[0] = "";
+    char* buf = NULL;
+    
+    while (*++string) {
+        if (!buf) buf = calloc(strlen(string) + 1, sizeof(char));
 
-    size_t part_count = 0;
+        if (*string == '"') {
 
-    for (size_t i = 0; i < strlen(string); i++) {
-        if (string[i] == delimiter) {
-            parts[++part_count] = "";
-            continue;
         }
-        parts[part_count] = ch_append(parts[part_count], string[i]);
+
+        if (*string == ' ') {
+            array_append(&bits, buf);
+        }
     }
 
-    return (Array) {
-        space_count + 1,
-        (void**)parts
-    };
+    return bits;
 }
 
 bool startswith(char* str, char* pre) {
@@ -215,7 +212,7 @@ Node* new_node(enum NodeType type) {
 Map parse_tag_params(Array parts) {
     Map map = { 0 };
     for (size_t i = 0; i < parts.length; i++) {
-        Array bits = split(parts.entries[i], '=');
+        Array bits = split_string(parts.entries[i], '=');
         if (bits.length != 2) continue;
         map_add_node(
             &map,
@@ -325,6 +322,15 @@ void showstopper(StoryState* state) {
     state->reached_end = true;
 }
 
+void do_something_with_image(char* storage, StoryState* state) {
+    if (strcmp(storage, "blacksozai") == 0) {
+        printf("[img] BLACKSOZAI: %s\n", storage);
+    } else {
+        printf("[img] Unknown storage '%s'\n", storage);
+        //showstopper(state);
+    }
+}
+
 void load_image(char* storage, StoryState* state) {
     // VRAM ISSUE!?
     //C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
@@ -394,7 +400,10 @@ void execute_current_node(StoryState* state, Array node_array) {
         return;
     }
 
-    Array parts_array = split(c_node->text_content, ' ');
+    // Parse nodes into parts
+    ParsedArgs args = parse_args(c_node->text_content);
+    //Array parts_array = split_into_tag_parts(c_node->text_content);
+
     char** parts = (char**)parts_array.entries;
 
     // for (size_t part_i = 0; part_i < parts.length; part_i++) {
@@ -403,6 +412,7 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     char* tag_name = parts[0];
     Map arg_map = parse_tag_params(parts_array);
+    printf("[-] %s\n", c_node->text_content);
     //map_dump_nodes(&arg_map);
 
     for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
@@ -485,7 +495,8 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
-        load_image(storage, state);
+        //load_image(storage, state);
+        do_something_with_image(storage, state);
     } else if (
         strcmp(tag_name, "playse") == 0
         || strcmp(tag_name, "playbgm") == 0
@@ -512,7 +523,7 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     } else if (strcmp(tag_name, "jump") == 0) {
         // Jump to label
-        Array j_parts = split(parts[1], '*');
+        Array j_parts = split_string(parts[1], '*');
         if (j_parts.length != 2) assert_fail("GAH!");
         char* target_label = (char*)(j_parts.entries[1]);
 
