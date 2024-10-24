@@ -108,16 +108,29 @@ Array parse_bits(char* string) {
 
     char* buf = NULL;
     
-    while (*++string) {
+    while (*string) {
         if (!buf) buf = calloc(strlen(string) + 1, sizeof(char));
-
-        if (*string == '"') {
-
-        }
 
         if (*string == ' ') {
             array_append(&bits, buf);
+            buf = NULL;
+            string++;
+            continue;
         }
+
+        if (*string == '"') {
+            do {
+            buf[strlen(buf)] = *string;
+            } while (*++string != '"' && *string != '\0');
+        } else {
+            buf[strlen(buf)] = *string;
+        }
+
+        string++;
+    }
+
+    if (buf && strlen(buf)) {
+        array_append(&bits, buf);
     }
 
     return bits;
@@ -400,19 +413,14 @@ void execute_current_node(StoryState* state, Array node_array) {
         return;
     }
 
+    printf("\n[-] %s\n", c_node->text_content);
+
     // Parse nodes into parts
-    ParsedArgs args = parse_args(c_node->text_content);
-    //Array parts_array = split_into_tag_parts(c_node->text_content);
-
+    Array parts_array = parse_bits(c_node->text_content);
     char** parts = (char**)parts_array.entries;
-
-    // for (size_t part_i = 0; part_i < parts.length; part_i++) {
-    //     printf("    - '%s'\n", parts.entries[part_i]);
-    // }
 
     char* tag_name = parts[0];
     Map arg_map = parse_tag_params(parts_array);
-    printf("[-] %s\n", c_node->text_content);
     //map_dump_nodes(&arg_map);
 
     for (size_t j = 0; j < sizeof(speakers) / sizeof(Speaker); j++) {
@@ -503,6 +511,8 @@ void execute_current_node(StoryState* state, Array node_array) {
     ) {
         bool is_bgm = strcmp(tag_name, "playbgm") == 0;
         char* storage = map_get(&arg_map, "storage");
+
+        map_dump_nodes(&arg_map);
 
         if (!storage) {
             printf("No storage SE\n");

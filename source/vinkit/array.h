@@ -19,7 +19,7 @@ void array_append(Array* array, void* new_entry) {
 Array split_string(char* string, char delimiter) {
     char* buf = NULL;
     size_t max_len = strlen(string);
-    Array* out = calloc(1, sizeof(Array));
+    Array out = { 0 };
 
     for (size_t i = 0; i < max_len; i++) {
         if (!buf) buf = calloc(max_len - i, sizeof(char));
@@ -30,9 +30,19 @@ Array split_string(char* string, char delimiter) {
             strcpy(entry, buf);
             buf = NULL;
 
-            array_append(out, entry);
+            array_append(&out, entry);
         } else {
             buf[strlen(buf)] = string[i];
         }
     }
+
+    // Finale!
+    if (buf) {
+        // Optimize size
+        char* entry = calloc(strlen(buf) + 1, sizeof(char));
+        strcpy(entry, buf);
+        array_append(&out, entry);
+    }
+
+    return out;
 }

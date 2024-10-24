@@ -32,6 +32,11 @@ void* map_get(Map* map, char* key) {
 }
 
 void map_dump_nodes(Map* map) {
+    if (!map->node_count) {
+        printf("[no nodes.]\n");
+        return;
+    }
+
     // Must be string...
     printf("Nodes:\n");
 
