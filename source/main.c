@@ -77,7 +77,8 @@ enum TransType {
 
 typedef struct Transition {
     enum TransType trans_type;
-    uint32_t time_ms;
+    int64_t time_ms;
+    int64_t og_time_ms;
     bool waiting_on;
 } Transition;
 
@@ -158,6 +159,12 @@ Array parse_bits(char* string) {
 
 bool startswith(char* str, char* pre) {
     return strncmp(pre, str, strlen(pre)) == 0;
+}
+
+uint64_t get_ms() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return  (((uint64_t)tv.tv_sec)*1000)+(tv.tv_usec/1000);
 }
 
 void node_ch_append(Node* node, char new) {
@@ -662,6 +669,7 @@ int main() {
     C2D_SetTintMode(C2D_TintMult);
 
     while (aptMainLoop()) {
+        time_t start_time = get_ms();
         hidScanInput();
 
         u32 keys_down = hidKeysDown();
@@ -677,15 +685,28 @@ int main() {
             state.requesting_user_input = false;
         }
 
-        printf("TODO: WAIT ON TRANSITION AND ALSO LERP THE COLOR BASED ON TRANSITION THING");
-
         while (!(state.reached_end || state.requesting_user_input || state.requesting_render || state.transition.waiting_on)) {
             execute_current_node(&state, nodes);
         }
 
         state.requesting_render = false;
 
-        //printf("[reiterate]\n");
+
+        int64_t diff = get_ms() - start_time;
+        if (state.transition.trans_type != NONE) {
+            state.transition.time_ms -= diff;
+            if (state.transition.time_ms <= 0) {
+                state.transition.trans_type = NONE;
+                state.transition.time_ms = 0;
+            }
+        }
+
+        if (state.transition.waiting_on && state.transtion.trans_type == NONE) {
+            state.transition.waiting_on = false;
+        }
+
+        double progress_through_transition = 1.0;
+
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
