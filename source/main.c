@@ -16,11 +16,16 @@
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
-Map spritesheets = { 0 };
 
-char* sprite_sheet_storage;
-C2D_SpriteSheet single_sprite_sheet = NULL;
-C2D_Sprite single_sprite = { 0 };
+typedef struct SpriteSingleton {
+    char* storage;
+    C2D_SpriteSheet sheet;
+    C2D_Sprite sprite;
+} SpriteSingleton;
+
+SpriteSingleton fg = { 0 };
+SpriteSingleton bg = { 0 };
+
 C2D_Font font;
 
 const char* ignore_list[] = {
@@ -65,8 +70,16 @@ typedef struct ParsedArgs {
     Map kwargs;
 } ParsedArgs;
 
+enum TransType {
+    NONE,
+    CROSSFADE
+};
 
-Array sprites = { 0 };
+typedef struct Transition {
+    enum TransType trans_type;
+    uint32_t time_ms;
+    bool waiting_on;
+} Transition;
 
 typedef struct SStoryState {
     size_t node_idx;
@@ -80,6 +93,7 @@ typedef struct SStoryState {
     uint32_t wait_ms;
     bool requesting_user_input;
     bool requesting_render;
+    Transition transition;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -363,46 +377,30 @@ void showstopper(StoryState* state) {
     state->reached_end = true;
 }
 
-void do_something_with_image(char* storage, StoryState* state) {
-    if (strcmp(storage, "blacksozai") == 0) {
-        printf("[img] BLACKSOZAI: %s\n", storage);
-    } else {
-        printf("[img] Unknown storage '%s'\n", storage);
-        //showstopper(state);
-    }
-}
+void load_image(char* storage, StoryState* state, bool is_bg) {
+    SpriteSingleton* target = is_bg ? &bg : &fg;
 
-void load_image(char* storage, StoryState* state) {
-    // VRAM ISSUE!?
-    //C2D_SpriteSheet* sprite_sheet = map_get(&spritesheets, storage);
-
-    //printf("[img] sscache len; %i\n", spritesheets.node_count);
-
-
-    if (strcmp(sprite_sheet_storage, storage) != 0) {
+    if (strcmp(target->storage, storage) != 0) {
         printf("Loading new image.\n");
-        if (single_sprite_sheet) {
-            C2D_SpriteSheetFree(single_sprite_sheet);
+        if (target->sheet) {
+            C2D_SpriteSheetFree(target->sheet);
         }
-
-        //single_sprite_sheet = calloc(1, sizeof(C2D_SpriteSheet));
 
         char* buffer = calloc(128, sizeof(char));
         snprintf(buffer, 128, "romfs:/img/%s.t3x", storage);
 
         printf("Loading from '%s'\n", buffer);
-        single_sprite_sheet = C2D_SpriteSheetLoad(buffer);
-        sprite_sheet_storage = storage;
+        target->sheet = C2D_SpriteSheetLoad(buffer);
+        target->storage = storage;
     }
 
-    if (!single_sprite_sheet) {
+    if (!target->sheet) {
         printf("NO SPRITESHEET WHEN LOAD!\n");
         showstopper(state);
         return;
     }
-    //map_add_node(&spritesheets, storage, sprite_sheet);
 
-    size_t num_images = C2D_SpriteSheetCount(single_sprite_sheet);
+    size_t num_images = C2D_SpriteSheetCount(target->sheet);
     if (num_images != 1) {
         printf("Weird IMAGE NUMBER: %i\n", num_images);
         showstopper(state);
@@ -410,11 +408,10 @@ void load_image(char* storage, StoryState* state) {
     }
 
 
-    //single_sprite = calloc(1, sizeof(C2D_Sprite));
-    C2D_SpriteFromSheet(&single_sprite, single_sprite_sheet, 0);
+    C2D_SpriteFromSheet(&target->sprite, target->sheet, 0);
 
     C2D_SpriteSetScale(
-        &single_sprite,
+        &target->sprite,
         400.0f / 800.0f,
         240.0f / 600.0f
         //single_sprite.params.pos.w / 800.0f * 400.0f,
@@ -422,7 +419,8 @@ void load_image(char* storage, StoryState* state) {
     );
 
     //sprites.entries[sprites.length++] = sprite;
-    // svcSleepThread((long long) 500 *  1000000LL);
+    //svcSleepThread((long long) 2500 *  1000000LL);
+    return;
 }
 
 void execute_current_node(StoryState* state, Array node_array) {
@@ -510,7 +508,9 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "seopt") == 0) {
         TODO("seopt");
     } else if (strcmp(tag_name, "trans") == 0) {
-        TODO("trans");
+
+        char* method = map_get(&arg_map, "method");
+
     } else if (strcmp(tag_name, "wt") == 0) {
         TODO("wt");
     } else if (strcmp(tag_name, "fadeoutse") == 0) {
@@ -522,7 +522,10 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "position") == 0) {
         TODO("position");
     } else if (strcmp(tag_name, "backlay") == 0) {
-        TODO("backlay");
+        SpriteSingleton x = fg;
+        fg = bg;
+        bg = x;
+        state->requesting_render = true;
     } else if (strcmp(tag_name, "font") == 0) {
         TODO("font");
     } else if (strcmp(tag_name, "wait") == 0) {
@@ -538,9 +541,13 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
-        load_image(storage, state);
+
+        char* page = map_get(&arg_map, "page");
+        bool bg = (page && strcmp(page, "back") == 0);
+
+        // BG CHECK IFI TS BG
+        load_image(storage, state, bg);
         state->requesting_render = true;
-        //do_something_with_image(storage, state);
     } else if (
         strcmp(tag_name, "playse") == 0
         || strcmp(tag_name, "playbgm") == 0
@@ -645,8 +652,6 @@ int main() {
     //
     font = C2D_FontLoad("romfs:/DroidSerif.bcfnt");
 
-    sprites.entries = calloc(128, sizeof(C2D_Sprite*));
-
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
     execute_current_node(&state, nodes);
@@ -654,6 +659,7 @@ int main() {
     printf("START\n");
 
     dialog_text_buffer = C2D_TextBufNew(4096);
+    C2D_SetTintMode(C2D_TintMult);
 
     while (aptMainLoop()) {
         hidScanInput();
@@ -671,24 +677,29 @@ int main() {
             state.requesting_user_input = false;
         }
 
-        while (!(state.reached_end || state.requesting_user_input || state.requesting_render)) {
+        printf("TODO: WAIT ON TRANSITION AND ALSO LERP THE COLOR BASED ON TRANSITION THING");
+
+        while (!(state.reached_end || state.requesting_user_input || state.requesting_render || state.transition.waiting_on)) {
             execute_current_node(&state, nodes);
         }
 
         state.requesting_render = false;
 
-        printf("[reiterate]\n");
+        //printf("[reiterate]\n");
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-        C2D_DrawSprite(&single_sprite);
 
-        //for (size_t i = 0; i < sprites.length; i++) {
-        //    C2D_Sprite* sprite = sprites.entries[i];
-        //    C2D_DrawSprite(sprite);
-        //}
+        C2D_ImageTint tint;
+        C2D_PlainImageTint(&tint, C2D_Color32f(1.0, 1.0, 1.0, 0.4), 1.0);
+
+        if (bg.storage) {
+            C2D_DrawSpriteTinted(&bg.sprite, &tint);
+        }
+
+        if (fg.storage) C2D_DrawSpriteTinted(&fg.sprite, &tint);
 
         render_dialog(&state);
 
@@ -700,15 +711,11 @@ int main() {
         }
     }
 
-	// Delete graphics
-	//C2D_SpriteSheetFree(sprite_sheet);
-
     C2D_TextBufDelete(dialog_text_buffer);
-
     sound_deinit();
 
-    ndspExit();
 	// Deinit libs
+    ndspExit();
 	C2D_Fini();
 	C3D_Fini();
 	gfxExit();
