@@ -20,7 +20,7 @@ Map spritesheets = { 0 };
 
 char* sprite_sheet_storage;
 C2D_SpriteSheet single_sprite_sheet = NULL;
-C2D_Sprite* single_sprite = NULL;
+C2D_Sprite single_sprite = { 0 };
 C2D_Font font;
 
 const char* ignore_list[] = {
@@ -79,6 +79,7 @@ typedef struct SStoryState {
     bool bold;
     uint32_t wait_ms;
     bool requesting_user_input;
+    bool requesting_render;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -377,9 +378,9 @@ void load_image(char* storage, StoryState* state) {
 
     //printf("[img] sscache len; %i\n", spritesheets.node_count);
 
-    // svcSleepThread((long long) 500 *  1000000LL);
 
     if (strcmp(sprite_sheet_storage, storage) != 0) {
+        printf("Loading new image.\n");
         if (single_sprite_sheet) {
             C2D_SpriteSheetFree(single_sprite_sheet);
         }
@@ -409,14 +410,19 @@ void load_image(char* storage, StoryState* state) {
     }
 
 
-    single_sprite = calloc(1, sizeof(C2D_Sprite));
-    C2D_SpriteFromSheet(single_sprite, single_sprite_sheet, 0);
-    //C2D_SpriteSetScale(
-    //    single_sprite,
-    //    single_sprite->params.pos.w / 800.0f * 400.0f,
-    //    single_sprite->params.pos.w / 600.0f * 240.0f
-    //);
+    //single_sprite = calloc(1, sizeof(C2D_Sprite));
+    C2D_SpriteFromSheet(&single_sprite, single_sprite_sheet, 0);
+
+    C2D_SpriteSetScale(
+        &single_sprite,
+        400.0f / 800.0f,
+        240.0f / 600.0f
+        //single_sprite.params.pos.w / 800.0f * 400.0f,
+        //single_sprite.params.pos.w / 600.0f * 240.0f
+    );
+
     //sprites.entries[sprites.length++] = sprite;
+    // svcSleepThread((long long) 500 *  1000000LL);
 }
 
 void execute_current_node(StoryState* state, Array node_array) {
@@ -532,8 +538,9 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
-        //load_image(storage, state);
-        do_something_with_image(storage, state);
+        load_image(storage, state);
+        state->requesting_render = true;
+        //do_something_with_image(storage, state);
     } else if (
         strcmp(tag_name, "playse") == 0
         || strcmp(tag_name, "playbgm") == 0
@@ -664,17 +671,19 @@ int main() {
             state.requesting_user_input = false;
         }
 
-        while (!(state.reached_end || state.requesting_user_input)) {
+        while (!(state.reached_end || state.requesting_user_input || state.requesting_render)) {
             execute_current_node(&state, nodes);
         }
+
+        state.requesting_render = false;
+
+        printf("[reiterate]\n");
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
-        if (single_sprite) {
-            C2D_DrawSprite(single_sprite);
-        }
+        C2D_DrawSprite(&single_sprite);
 
         //for (size_t i = 0; i < sprites.length; i++) {
         //    C2D_Sprite* sprite = sprites.entries[i];
