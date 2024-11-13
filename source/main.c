@@ -68,6 +68,11 @@ typedef struct ParsedArgs {
     Map kwargs;
 } ParsedArgs;
 
+typedef struct PaperDoll {
+    SpriteSingleton body;
+    SpriteSingleton face;
+} PaperDoll;
+
 enum TransType {
     NONE,
     CROSSFADE
@@ -426,6 +431,25 @@ void load_image(char* storage, StoryState* state, bool is_bg) {
     return;
 }
 
+void jump_to_label(StoryState* state, Array node_array, char* label) {
+    Node** nodes = (Node**)node_array.entries;
+
+    for (size_t i = 0; i < node_array.length; i++) {
+        // Not a label? not interested!
+        if (nodes[i]->type != LABEL) continue;
+
+        // Get rid of pipes as thats a marker ROFL
+        char* clean = wipe_char(nodes[i]->text_content, '|');
+
+        // Check!
+        if (strcmp(label, clean) != 0) continue;
+
+        printf("Jumped to %s\n", clean);
+        state->node_idx = i;
+        return;
+    }
+}
+
 void execute_current_node(StoryState* state, Array node_array) {
     Node** nodes = (Node**)node_array.entries;
 
@@ -445,17 +469,7 @@ void execute_current_node(StoryState* state, Array node_array) {
     if (c_node->type == TEXT) {
         nodes[state->node_idx]->text_content = wipe_char(c_node->text_content, '\n');
         show_text(state, c_node->text_content, false);
-        //svcSleepThread((long long) 100 *  1000000LL);
         return;
-    }
-
-    char* next_tag_name = NULL;
-    for (size_t i = state->node_idx + 1; i < node_array.length; i++) {
-        if (nodes[i]->type != TAG) continue;
-        Array parts_array = parse_bits(nodes[i]->text_content);
-        char** parts = (char**)parts_array.entries;
-
-        next_tag_name = parts[0];
     }
 
     printf("\n[-] [%i] %s\n", state->nodes_executed, c_node->text_content);
@@ -478,6 +492,9 @@ void execute_current_node(StoryState* state, Array node_array) {
         if (strcmp(tag_name, characters[j].name) != 0) continue;
         printf("[hello] Speak %s\n", tag_name);
         map_dump_nodes(&arg_map);
+
+
+        showstopper(state);
         return;
     }
 
@@ -602,22 +619,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         Array j_parts = split_string(parts[1], '*');
         if (j_parts.length != 2) assert_fail("GAH!");
         char* target_label = (char*)(j_parts.entries[1]);
-
-        // Check all nodes
-        for (size_t j = 0; j < node_array.length; j++) {
-            // Not a label? not interested!
-            if (nodes[j]->type != LABEL) continue;
-
-            // Get rid of pipes as thats a marker ROFL
-            char* clean = wipe_char(nodes[j]->text_content, '|');
-
-            // Check!
-            if (strcmp(target_label, clean) != 0) continue;
-
-            printf("Jumped to %s\n", clean);
-            state->node_idx = j;
-            return;
-        }
+        jump_to_label(state, node_array, target_label);
     } else if (strcmp(tag_name, "p") == 0) {
         state->requesting_user_input = true;
         return;
@@ -653,6 +655,12 @@ void execute_current_node(StoryState* state, Array node_array) {
     }
 }
 
+void render_paperdoll(PaperDoll* doll) {
+    //gfx/img/女中_体.png
+    C2D_DrawSprite
+    doll.
+}
+
 int main() {
     romfsInit();
     ndspInit();
@@ -677,6 +685,8 @@ int main() {
 
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
+    //jump_to_label(&state, nodes, "first_540C42D1_CF8B_4050_832A_CFD8B94A0EAE");
+    jump_to_label(&state, nodes, "first_BE2E91F1_927C_45A2_ADA5_26E15DE54290");
     execute_current_node(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
