@@ -10,9 +10,7 @@
 #include "vinkit/array.h"
 #include <unistd.h>
 
-//PrintConsole top_screen;
-//PrintConsole bottom_screen;
-//
+#define IGNORE_WAITS true
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
@@ -78,7 +76,7 @@ enum TransType {
 typedef struct Transition {
     enum TransType trans_type;
     int64_t time_ms;
-    int64_t og_time_ms;
+    int64_t start_ms;
     bool waiting_on;
 } Transition;
 
@@ -425,8 +423,6 @@ void load_image(char* storage, StoryState* state, bool is_bg) {
         //single_sprite.params.pos.w / 600.0f * 240.0f
     );
 
-    //sprites.entries[sprites.length++] = sprite;
-    //svcSleepThread((long long) 2500 *  1000000LL);
     return;
 }
 
@@ -441,16 +437,25 @@ void execute_current_node(StoryState* state, Array node_array) {
     state->nodes_executed++;
     Node* c_node = nodes[state->node_idx];
 
+
     if (c_node->type == COMMENT) return;
     if (c_node->type == LABEL) return;
     if (!is_node_substantial(c_node)) return;
 
-
     if (c_node->type == TEXT) {
         nodes[state->node_idx]->text_content = wipe_char(c_node->text_content, '\n');
         show_text(state, c_node->text_content, false);
-        svcSleepThread((long long) 100 *  1000000LL);
+        //svcSleepThread((long long) 100 *  1000000LL);
         return;
+    }
+
+    char* next_tag_name = NULL;
+    for (size_t i = state->node_idx + 1; i < node_array.length; i++) {
+        if (nodes[i]->type != TAG) continue;
+        Array parts_array = parse_bits(nodes[i]->text_content);
+        char** parts = (char**)parts_array.entries;
+
+        next_tag_name = parts[0];
     }
 
     printf("\n[-] [%i] %s\n", state->nodes_executed, c_node->text_content);
@@ -515,11 +520,19 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "seopt") == 0) {
         TODO("seopt");
     } else if (strcmp(tag_name, "trans") == 0) {
-
         char* method = map_get(&arg_map, "method");
+        char* time = map_get(&arg_map, "time");
+        if (!time) return;
+
+        uintmax_t num = strtoumax(time, NULL, 10);
+
+        state->transition.time_ms = num;
+        state->transition.start_ms = get_ms();
+        state->transition.trans_type = CROSSFADE;
 
     } else if (strcmp(tag_name, "wt") == 0) {
-        TODO("wt");
+        state->transition.waiting_on = true;
+        state->requesting_render = true;
     } else if (strcmp(tag_name, "fadeoutse") == 0) {
         TODO("fadeoutse");
     } else if (strcmp(tag_name, "fadeinbgm") == 0) {
@@ -537,14 +550,14 @@ void execute_current_node(StoryState* state, Array node_array) {
         TODO("font");
     } else if (strcmp(tag_name, "wait") == 0) {
         char* wait = map_get(&arg_map, "time");
-        if (!wait) {
-            printf("WTF lol\n");
-            return;
-        }
+        if (!wait) return;
 
         uintmax_t num = strtoumax(wait, NULL, 10);
-        printf("WAITIN FOR %lli\n", num);
-        //state->wait_ms = (uint32_t)num;
+
+        if (!IGNORE_WAITS) {
+            printf("WAITIN FOR %lli\n", num);
+            state->wait_ms = (uint32_t)num;
+        }
     } else if (strcmp(tag_name, "image") == 0) {
         char* storage = map_get(&arg_map, "storage");
         if (!storage) return;
@@ -554,6 +567,9 @@ void execute_current_node(StoryState* state, Array node_array) {
 
         // BG CHECK IFI TS BG
         load_image(storage, state, bg);
+        //printf("%s\n", next_tag_name);
+        //if (strcmp("trans", next_tag_name) == 0) showstopper(state);
+        // Annoying
         state->requesting_render = true;
     } else if (
         strcmp(tag_name, "playse") == 0
@@ -692,20 +708,20 @@ int main() {
         state.requesting_render = false;
 
 
-        int64_t diff = get_ms() - start_time;
+        int64_t ms_progress = get_ms() - state.transition.start_ms;
+        double trans_progress = (double)ms_progress / (double)state.transition.time_ms;
+        
         if (state.transition.trans_type != NONE) {
-            state.transition.time_ms -= diff;
-            if (state.transition.time_ms <= 0) {
+            //printf("[trans]! %lli :: %lli\n :: %f", state.transition.time_ms, ms_progress, trans_progress);
+            if (ms_progress >= state.transition.time_ms || IGNORE_WAITS) {
                 state.transition.trans_type = NONE;
                 state.transition.time_ms = 0;
             }
         }
 
-        if (state.transition.waiting_on && state.transtion.trans_type == NONE) {
+        if (state.transition.waiting_on && state.transition.trans_type == NONE) {
             state.transition.waiting_on = false;
         }
-
-        double progress_through_transition = 1.0;
 
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
@@ -713,14 +729,17 @@ int main() {
 		C2D_SceneBegin(top);
 
 
-        C2D_ImageTint tint;
-        C2D_PlainImageTint(&tint, C2D_Color32f(1.0, 1.0, 1.0, 0.4), 1.0);
-
         if (bg.storage) {
+            C2D_ImageTint tint;
+            C2D_PlainImageTint(&tint, C2D_Color32f(1.0, 1.0, 1.0, trans_progress), 1.0);
             C2D_DrawSpriteTinted(&bg.sprite, &tint);
         }
 
-        if (fg.storage) C2D_DrawSpriteTinted(&fg.sprite, &tint);
+        if (fg.storage) {
+            C2D_ImageTint tint;
+            C2D_PlainImageTint(&tint, C2D_Color32f(1.0, 1.0, 1.0, 1.0 - trans_progress), 1.0);
+            C2D_DrawSpriteTinted(&fg.sprite, &tint);
+        }
 
         render_dialog(&state);
 
