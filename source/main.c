@@ -10,7 +10,7 @@
 #include "vinkit/array.h"
 #include <unistd.h>
 
-#define IGNORE_WAITS true
+#define IGNORE_WAITS false
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
@@ -494,7 +494,7 @@ void execute_current_node(StoryState* state, Array node_array) {
         map_dump_nodes(&arg_map);
 
 
-        showstopper(state);
+        //showstopper(state);
         return;
     }
 
@@ -657,8 +657,8 @@ void execute_current_node(StoryState* state, Array node_array) {
 
 void render_paperdoll(PaperDoll* doll) {
     //gfx/img/女中_体.png
-    C2D_DrawSprite
-    doll.
+    //C2D_DrawSprite
+    //doll.
 }
 
 int main() {
@@ -686,7 +686,7 @@ int main() {
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
     //jump_to_label(&state, nodes, "first_540C42D1_CF8B_4050_832A_CFD8B94A0EAE");
-    jump_to_label(&state, nodes, "first_BE2E91F1_927C_45A2_ADA5_26E15DE54290");
+    //jump_to_label(&state, nodes, "first_BE2E91F1_927C_45A2_ADA5_26E15DE54290");
     execute_current_node(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
