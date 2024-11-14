@@ -10,7 +10,7 @@
 #include "vinkit/array.h"
 #include <unistd.h>
 
-#define IGNORE_WAITS false
+#define IGNORE_WAITS true
 
 C2D_TextBuf dialog_text_buffer;
 char* shown_dialog_text;
@@ -73,6 +73,8 @@ typedef struct PaperDoll {
     SpriteSingleton face;
 } PaperDoll;
 
+Array paperdolls = { 0 };
+
 enum TransType {
     NONE,
     CROSSFADE
@@ -98,6 +100,7 @@ typedef struct SStoryState {
     bool requesting_user_input;
     bool requesting_render;
     Transition transition;
+    bool breakpoint;
 } StoryState;
 
 char* ch_append(char* string, char new) {
@@ -450,6 +453,46 @@ void jump_to_label(StoryState* state, Array node_array, char* label) {
     }
 }
 
+SpriteSingleton load_face_bit(char* owner, char* storage) {
+    char path[128] = { 0 };
+    snprintf(path, 128, "romfs:/img/%s_%s.t3x", owner, storage);
+
+    SpriteSingleton ss = { 0 };
+    ss.storage = path;
+    ss.sheet = C2D_SpriteSheetLoad(path);
+
+    if (!ss.sheet) {
+        printf("NOOOOOOOOOOOOOO\n");
+    }
+
+    C2D_SpriteFromSheet(&ss.sprite, ss.sheet, 0);
+
+    C2D_SpriteSetScale(
+        &ss.sprite,
+        400.0f / 800.0f,
+        240.0f / 600.0f
+    );
+
+    return ss;
+}
+
+void add_paperdoll(char* name, char* body_name, char* face_name) {
+    PaperDoll* doll = calloc(1, sizeof(PaperDoll));
+
+    doll->body = load_face_bit(name, body_name);
+    doll->face = load_face_bit(name, face_name);
+
+    array_append(&paperdolls, doll);
+}
+void render_paperdolls() {
+    for (size_t i = 0; i < paperdolls.length; i++) {
+        //printf("DOLL %i\n", i);
+        PaperDoll* doll = paperdolls.entries[i];
+        C2D_DrawSprite(&doll->body.sprite);
+        C2D_DrawSprite(&doll->face.sprite);
+    }
+}
+
 void execute_current_node(StoryState* state, Array node_array) {
     Node** nodes = (Node**)node_array.entries;
 
@@ -463,7 +506,13 @@ void execute_current_node(StoryState* state, Array node_array) {
 
 
     if (c_node->type == COMMENT) return;
-    if (c_node->type == LABEL) return;
+    if (c_node->type == LABEL) {
+        if (strcmp(c_node->text_content, "first_3675C0FE_B595_46A4_8729_173AACA6B810|") == 0) {
+            printf("BREAKING!\n");
+            state->breakpoint = true;
+        }
+        return;
+    }
     if (!is_node_substantial(c_node)) return;
 
     if (c_node->type == TEXT) {
@@ -493,8 +542,21 @@ void execute_current_node(StoryState* state, Array node_array) {
         printf("[hello] Speak %s\n", tag_name);
         map_dump_nodes(&arg_map);
 
+        char* storage = map_get(&arg_map, "storage");
+        if (!storage) {
+            printf("No storage!\n");
+            showstopper(state);
+            return;
+        }
 
-        //showstopper(state);
+        Array storage_bits_arr = split_string(storage, ' ');
+        if (!storage_bits_arr.length) printf("EVIL!");
+
+        char** storage_bits = (char**)storage_bits_arr.entries;
+
+        add_paperdoll(tag_name, storage_bits[0], storage_bits[1]);
+
+        showstopper(state);
         return;
     }
 
@@ -504,13 +566,19 @@ void execute_current_node(StoryState* state, Array node_array) {
 
     if (strcmp(tag_name, "if") == 0) {
         bool fataend = strcmp(parts[1], "exp=\"sf.fataend!=1\"") == 0;
-        printf("[if] FATAEND: %i\n", fataend);
+
+        if (fataend) {
+            printf("[if BEGIN] (FATAEND)\n");
+        } else {
+            printf("[if BEGIN] (NORMAL)\n");
+        }
 
         if (!fataend) {
             // Skip statement if its not fataend ROFL
             while (strcmp(nodes[state->node_idx]->text_content, "endif") != 0) {
                 state->node_idx++;
             }
+            printf("[/if] (NOT-FATAEND)\n");
         } else {
             state->in_if = true;
         }
@@ -519,6 +587,7 @@ void execute_current_node(StoryState* state, Array node_array) {
             printf("ELSECLAUSE - \"%s\"\n", nodes[state->node_idx]->text_content);
             state->node_idx++;
         }
+        printf("[/if] (ELSE)\n");
         state->in_if = false;
     } else if (strcmp(tag_name, "visible_text") == 0) {
         TODO("visible_text");
@@ -655,12 +724,6 @@ void execute_current_node(StoryState* state, Array node_array) {
     }
 }
 
-void render_paperdoll(PaperDoll* doll) {
-    //gfx/img/女中_体.png
-    //C2D_DrawSprite
-    //doll.
-}
-
 int main() {
     romfsInit();
     ndspInit();
@@ -685,8 +748,10 @@ int main() {
 
     StoryState state = { 0 };
     Array nodes = execute("romfs:/scenario.ks");
-    //jump_to_label(&state, nodes, "first_540C42D1_CF8B_4050_832A_CFD8B94A0EAE");
+
+    jump_to_label(&state, nodes, "first_540C42D1_CF8B_4050_832A_CFD8B94A0EAE");
     //jump_to_label(&state, nodes, "first_BE2E91F1_927C_45A2_ADA5_26E15DE54290");
+
     execute_current_node(&state, nodes);
     printf("HELLO %i\n", state.node_idx);
     printf("START\n");
@@ -695,7 +760,6 @@ int main() {
     C2D_SetTintMode(C2D_TintMult);
 
     while (aptMainLoop()) {
-        time_t start_time = get_ms();
         hidScanInput();
 
         u32 keys_down = hidKeysDown();
@@ -713,6 +777,10 @@ int main() {
 
         while (!(state.reached_end || state.requesting_user_input || state.requesting_render || state.transition.waiting_on)) {
             execute_current_node(&state, nodes);
+            if (state.breakpoint) {
+                state.requesting_user_input = true;
+                printf("%%");
+            }
         }
 
         state.requesting_render = false;
@@ -735,7 +803,7 @@ int main() {
 
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
+		C2D_TargetClear(top, C2D_Color32f(0.2f, 0.0f, 0.0f, 1.0f));
 		C2D_SceneBegin(top);
 
 
@@ -750,6 +818,8 @@ int main() {
             C2D_PlainImageTint(&tint, C2D_Color32f(1.0, 1.0, 1.0, 1.0 - trans_progress), 1.0);
             C2D_DrawSpriteTinted(&fg.sprite, &tint);
         }
+
+        render_paperdolls();
 
         render_dialog(&state);
 
