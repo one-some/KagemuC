@@ -606,7 +606,7 @@ void execute_current_node(StoryState* state, Array node_array) {
     } else if (strcmp(tag_name, "seopt") == 0) {
         TODO("seopt");
     } else if (strcmp(tag_name, "trans") == 0) {
-        char* method = map_get(&arg_map, "method");
+        //char* method = map_get(&arg_map, "method");
         char* time = map_get(&arg_map, "time");
         if (!time) return;
 
